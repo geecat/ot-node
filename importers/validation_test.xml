@@ -9,7 +9,7 @@
 				<sbdh:Identifier Authority="OriginTrail">SENDER_PROVIDER_ID</sbdh:Identifier> <!-- Mandatory --> <!-- Creator PROVIDER_ID-->
 				<sbdh:ContactInformation> <!-- Mandatory-->
 					<sbdh:Contact>Mary Smith</sbdh:Contact> <!-- Mandatory -->
-					<sbdh:EmailAddress>Mary_Smith@wines.com</sbdh:EmailAddress>	<!-- Optional -->				
+					<sbdh:EmailAddress>Mary_Smith@wines.com</sbdh:EmailAddress>	<!-- Optional -->
 				</sbdh:ContactInformation>
 			</sbdh:Sender>
 			<sbdh:Receiver> <!-- Mandatory -->
@@ -24,7 +24,7 @@
 				<sbdh:TypeVersion>V1.3</sbdh:TypeVersion> <!-- Document version-->
 				<sbdh:InstanceIdentifier>100003</sbdh:InstanceIdentifier> <!-- UNIQUE IDENTIFIER OF DOCUMENT - PRIMARY KEY IN ERP -->
 				<sbdh:Type>Ordering</sbdh:Type> <!-- DEFINED IN SCHEMA Example; order, invoice, debitCreditAdvice -->
-				<sbdh:CreationDateAndTime>2003-05-09T00:31:52Z</sbdh:CreationDateAndTime> <!-- Optional -->		
+				<sbdh:CreationDateAndTime>2003-05-09T00:31:52Z</sbdh:CreationDateAndTime> <!-- Optional -->
 			</sbdh:DocumentIdentification>
 			<sbdh:BusinessScope> <!-- Optional -->
 				<sbdh:Scope>
@@ -90,7 +90,7 @@
 								<attribute id="urn:ot:mda:object:name">Winter sallad mix</attribute>
 							    <attribute id="urn:ot:mda:object:type">Sallad</attribute>
 								<attribute id="urn:ot:mda:object:category">Fresh salad</attribute>
-								<attribute id="urn:ot:mda:object:ean13">8438454123998</attribute>
+								<attribute id="urn:ot:mda:object:ean13">501234567890</attribute>
 							</OTVocabularyElement>
 						</extension>
 					</Vocabulary>					

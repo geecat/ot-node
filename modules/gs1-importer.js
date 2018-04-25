@@ -2,10 +2,12 @@ const { parseString } = require('xml2js');
 const fs = require('fs');
 const md5 = require('md5');
 const deasync = require('deasync-promise');
+const xsd = require('libxml-xsd');
 
 const GSInstance = require('./GraphStorageInstance');
 const utilities = require('./Utilities');
 const async = require('async');
+const validator = require('validator');
 
 // Update import data
 
@@ -65,17 +67,101 @@ function sanitize(old_obj, new_obj, patterns) {
 
 function Error(message) {
     console.log(`Error: ${message}`);
-    return false;
+    return message;
 }
 
 // validate
-function validate (vocabularyId, rawObjectData) {
-    for( key in rawObjectData ) {
-        if(key.id.indexOf(type) != 0) {
-            return false;
-        }
+function providerIdValidation(provider_id, validation_object) {
+    const data = provider_id;
+    const object = validation_object;
+    if (data.length === 12) {
+        return true;
+    }
+    return false;
+}
+
+function emailValidation(email) {
+    const result = validator.isEmail(email);
+
+    if (result) {
+        return true;
+    }
+    return false;
+}
+
+function dateTimeValidation(date) {
+    const result = validator.isISO8601(date);
+
+    if (result) {
+        return true;
+    }
+    return false;
+}
+
+function countryValidation(country) {
+    const postal_code = country;
+
+    if (postal_code.length > 2) {
+        return false;
     }
     return true;
+}
+
+function postalCodeValidation(code) {
+    const result = validator.isNumeric(code);
+
+    if (result) {
+        return true;
+    }
+    return false;
+}
+
+function longLatValidation(data) {
+    const result = validator.isLatLong(data);
+    if (result) {
+        return true;
+    }
+    return false;
+}
+
+function ean13Validation(code) {
+    const ean = code;
+
+    var checkSum = ean.split('').reduce((p, v, i) => (i % 2 == 0 ? p + 1 * v : p + 3 * v), 0);
+
+    if (checkSum % 10 != 0) {
+        return false;
+    }
+    return true;
+}
+
+function numberValidation(num) {
+    const number = validator.isDecimal(num, { locale: 'en-AU' });
+
+    if (number) {
+        return true;
+    }
+    return false;
+}
+
+function ethWalletValidation(wallet) {
+    const eth_wallet = wallet;
+
+    const first_char = eth_wallet.charAt(0);
+    const second_char = eth_wallet.charAt(1);
+    const rest = eth_wallet.substr(2);
+    const rest_hex = validator.isHexadecimal(rest);
+
+    var valid = false;
+
+    if (rest_hex && rest.length === 40) {
+        valid = true;
+    }
+
+    if (first_char === '0' && second_char === 'x' && valid) {
+        return true;
+    }
+    return false;
 }
 
 
@@ -83,6 +169,21 @@ module.exports = () => ({
     parseGS1(gs1_xml_file, callback) {
         const { db } = GSInstance;
         var gs1_xml = fs.readFileSync(gs1_xml_file);
+        var gs1_xsd = fs.readFileSync('./importers/EPCglobal-epcis-masterdata-1_2.xsd');
+
+        xsd.parseFile('./importers/EPCglobal-epcis-masterdata-1_2.xsd', function (err, schema) {
+            if (err) {
+                throw Error('Invalid XML structure!');
+            }
+            schema.validate(gs1_xml, function (err, validationErrors) {
+
+                if (err) {
+                    throw Error('Invalid XML structure!');
+                }
+
+            });
+        });
+
         parseString
         (
             gs1_xml,
@@ -141,7 +242,22 @@ module.exports = () => ({
                     throw Error('Missing EPCISDocument element!');
                 }
 
+
+
                 const EPCISDocument_element = result['epcis:EPCISDocument'];
+
+
+
+                const creation_date_head_check = findValuesHelper(EPCISDocument_element, 'creationDate', []);
+                if (creation_date_head_check.length > 0) {
+                    var temp_creation_date_head = EPCISDocument_element.creationDate;
+                }
+                const creation_date_head = temp_creation_date_head;
+
+                var creation_date_head_validation = dateTimeValidation(creation_date_head);
+                if(!creation_date_head_validation) {
+                    throw Error('Invalid Date and Time format. Please use format defined by ISO 8601 standard!');
+                }
 
                 const new_obj = {};
                 sanitized_EPCIS_document = sanitize(EPCISDocument_element, new_obj, ['sbdh:', 'xmlns:']);
@@ -154,12 +270,34 @@ module.exports = () => ({
                 const EPCISHeader_element = sanitized_EPCIS_document.EPCISHeader;
 
 
+
                 const standard_doc_header = findValuesHelper(EPCISHeader_element, 'StandardBusinessDocumentHeader', []);
                 if (standard_doc_header.length <= 0) {
                     throw Error('Missing StandardBusinessDocumentHeader element for EPCISHeader element!');
                 }
                 const StandardBusinessDocumentHeader_element =
                     EPCISHeader_element.StandardBusinessDocumentHeader;
+
+
+                const document_id_check = findValuesHelper(StandardBusinessDocumentHeader_element, 'DocumentIdentification', []);
+                if (document_id_check.length > 0) {
+                    var tempDocument_identification_element = StandardBusinessDocumentHeader_element.DocumentIdentification;
+                }
+                const Document_identification_element = tempDocument_identification_element;
+
+                const creation_date_check = findValuesHelper(Document_identification_element, 'CreationDateAndTime', []);
+                if (creation_date_check.length > 0) {
+                    var tempCreationDate_element = Document_identification_element.CreationDateAndTime;
+                }
+                const CreationDate_element = tempCreationDate_element;
+
+
+                const date_validation_result = dateTimeValidation(CreationDate_element);
+
+                if(!date_validation_result){
+                    throw Error ('Invalid Date and Time format. Please use format defined by ISO 8601 standard!');
+                }
+
 
 
                 // //SENDER
@@ -175,6 +313,25 @@ module.exports = () => ({
                     throw Error('Missing Identifier element for Sender element!');
                 }
                 const sender_id_element = Sender_element.Identifier;
+
+                const contact_info_check = findValuesHelper(Sender_element, 'ContactInformation', []);
+                if (contact_info_check.length > 0) {
+                    var temp_contact_info = Sender_element.ContactInformation;
+                }
+                const contact_info_sender_element = temp_contact_info;
+
+                const email_check = findValuesHelper(contact_info_sender_element, 'EmailAddress', []);
+                if (email_check.length > 0) {
+                    var temp_email_check = contact_info_sender_element.EmailAddress;
+                }
+                const sender_email = temp_email_check;
+
+                const email_validation = emailValidation(sender_email);
+                if(!email_validation) {
+                    throw Error('This email adress is not valid!');
+                }
+
+
 
 
                 const sendid = findValuesHelper(sender_id_element, '_', []);
@@ -204,6 +361,23 @@ module.exports = () => ({
                     throw Error('Missing Identifier element for Receiver element!');
                 }
                 const receiver_id_element = Receiver_element.Identifier;
+
+                const receiver_contact_info_check = findValuesHelper(Receiver_element, 'ContactInformation', []);
+                if (receiver_contact_info_check.length > 0) {
+                    var temp_contact_info_receiver = Receiver_element.ContactInformation;
+                }
+                const contact_info_receiver_element = temp_contact_info_receiver;
+
+                const email_check_receiver = findValuesHelper(contact_info_receiver_element, 'EmailAddress', []);
+                if (email_check_receiver.length > 0) {
+                    var temp_email_check_receiver = contact_info_receiver_element.EmailAddress;
+                }
+                const receiver_email = temp_email_check_receiver;
+
+                const email_validation_receiver = emailValidation(receiver_email);
+                if(!email_validation_receiver) {
+                    throw Error('This email adress is not valid!');
+                }
 
 
                 const receiveid = findValuesHelper(receiver_id_element, '_', []);
@@ -355,6 +529,8 @@ module.exports = () => ({
                                         }
                                         const { attribute } = v;
 
+
+
                                         for (const y in attribute) {
                                             const kk = attribute[y];
 
@@ -365,6 +541,23 @@ module.exports = () => ({
                                             }
                                             const str = kk.id;
                                             attribute_id = str;
+
+                                            const attribute_value = kk._;
+
+
+                                            if (attribute_id === 'urn:ts:location:country') {
+                                                var country_validation = countryValidation(attribute_value);
+                                                if(!country_validation) {
+                                                    throw Error('Invalid country code. Please use two characters!');
+                                                }
+                                            }
+
+                                            if (attribute_id === 'urn:ts:location:postalCode') {
+                                                var postal_code_validation = postalCodeValidation(attribute_value);
+                                                if(!postal_code_validation) {
+                                                    throw Error('Invalid postal code!');
+                                                }
+                                            }
 
 
                                             data_object[attribute_id] = kk._;
@@ -440,7 +633,7 @@ module.exports = () => ({
 
 
                                                     attribute_id = attribute_id.replace('urn:ot:location:', '');
-                                                    console.log(attribute_id);
+
 
 
                                                     if (attribute_id === 'participantId') {
@@ -511,7 +704,7 @@ module.exports = () => ({
                                 }
                                 attribute_elements = OTVocabularyElement_element.attribute;
 
-                                console.log(OTVocabularyElement_element)
+                                // console.log(OTVocabularyElement_element)
 
                                 participants_data = {};
 
@@ -611,12 +804,26 @@ module.exports = () => ({
 
 
 
+                                    // console.log(temp_single_attribute_id)
+
+
+
                                     var single_attribute_value;
                                     const single_attribute_value_check = findValuesHelper(single_attribute, '_', []);
                                     if (single_attribute_value_check.length === 0) {
                                         throw Error('Missing value element for attribute element!');
                                     }
                                     single_attribute_value = single_attribute._;
+
+
+
+                                    if(single_attribute_id === 'urn:ot:mda:object:ean13') {
+                                        var ean13_validation = ean13Validation(single_attribute_value);
+                                        // console.log(ean13_validation)
+                                        if(!ean13_validation) {
+                                            throw Error('EAN13 code is not valid!');
+                                        }
+                                    }
 
 
                                     object_data[single_attribute_id] = single_attribute_value;
@@ -668,6 +875,8 @@ module.exports = () => ({
                                     batch_id = ot_vocabulary_element.id;
 
 
+
+
                                     var batch_attribute_el;
                                     const batch_attribute_el_check = findValuesHelper(ot_vocabulary_element, 'attribute', []);
                                     if (batch_attribute_el_check.length === 0) {
@@ -689,6 +898,8 @@ module.exports = () => ({
                                             temp_batch_attribute_id = single.id;
                                         }
 
+
+
                                         if (temp_batch_attribute_id.includes('urn:ot:mda:batch:objectid', 0) && object_id_instance == false) {
                                             object_id_instance = true;
                                         } else if (temp_batch_attribute_id.includes('urn:ot:mda:batch:', 0)) {
@@ -704,6 +915,20 @@ module.exports = () => ({
                                             throw Error('Missing value element for attribute element!');
                                         }
                                         batch_attribute_value = single._;
+
+                                        if(temp_batch_attribute_id === 'urn:ot:mda:batch:productiondate'){
+                                            var production_date_validation = dateTimeValidation(batch_attribute_value);
+                                            if(!production_date_validation) {
+                                                throw Error('Invalid date and time format for production date!');
+                                            }
+                                        }
+
+                                        if(temp_batch_attribute_id === 'urn:ot:mda:batch:expirationdate'){
+                                            var expiration_date_validation = dateTimeValidation(batch_attribute_value);
+                                            if(!expiration_date_validation) {
+                                                throw Error('Invalid date and time format for expiration date!');
+                                            }
+                                        }
 
 
                                         batch_data[batch_attribute_id] = batch_attribute_value;
@@ -732,7 +957,7 @@ module.exports = () => ({
                                     }
 
 
-                                    console.log(valid_attribute)
+                                    // console.log(valid_attribute)
 
                                     if (!object_id_instance) {
                                         throw Error('Missing Object ID');
@@ -787,6 +1012,11 @@ module.exports = () => ({
                                 }
 
                                 const event_time = event.eventTime;
+
+                                var event_time_validation = dateTimeValidation(event_time);
+                                if(!event_time_validation) {
+                                    throw Error('Invalid date and time format for event time!');
+                                }
 
                                 if (typeof event_time !== 'string') {
                                     throw Error('Multiple eventTime elements found!');
@@ -859,6 +1089,34 @@ module.exports = () => ({
                                     }
 
                                     biz_location = biz_location_element.id;
+                                }
+
+                                //extension
+                                if (findValuesHelper(event, 'extension', []).length !== 0) {
+                                    const obj_event_extension_element = event.extension;
+                                    const quantityElement_element = obj_event_extension_element.quantityList.quantityElement;
+                                    const extensionElement_extension = obj_event_extension_element.extension;
+
+                                    for(let element in quantityElement_element) {
+                                        let single_element = quantityElement_element[element];
+
+                                        let quantity = single_element.quantity;
+
+                                        let quantity_validation = numberValidation(quantity);
+                                        if(!quantity_validation) {
+                                            throw Error('Invalid format for quantity element!');
+                                        }
+                                    }
+
+
+                                    for(let element in extensionElement_extension) {
+                                        let temperature = extensionElement_extension[element];
+
+                                        let temperature_validation = numberValidation(temperature);
+                                        if(!temperature_validation) {
+                                            throw Error('Invalid format for temperature element!');
+                                        }
+                                    }
                                 }
 
                                 const object_event = {
@@ -1201,22 +1459,22 @@ module.exports = () => ({
                         vertices_list.push(participants[i]);
                     }
 
-                    try {
-                        deasync(db.createCollection('ot_vertices'));
-                        deasync(db.createEdgeCollection('ot_edges'));
-                    } catch (err) {
-                        console.log(err);
-                    }
+                    // try {
+                    //     deasync(db.createCollection('ot_vertices'));
+                    //     deasync(db.createEdgeCollection('ot_edges'));
+                    // } catch (err) {
+                    //     console.log(err);
+                    // }
 
-                    async.each(temp_participants, (participant, next) => {
-                        db.addDocument('ot_vertices', participant).then(() => {
-                            updateImportNumber('ot_vertices', participant, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing participants complete');
-                    });
+                    // async.each(temp_participants, (participant, next) => {
+                    //     db.addDocument('ot_vertices', participant).then(() => {
+                    //         updateImportNumber('ot_vertices', participant, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing participants complete');
+                    // });
 
                     var temp_objects = [];
                     for (const i in objects) {
@@ -1224,15 +1482,15 @@ module.exports = () => ({
                         vertices_list.push(objects[i]);
                     }
 
-                    async.each(temp_objects, (object, next) => {
-                        db.addDocument('ot_vertices', object).then(() => {
-                            updateImportNumber('ot_vertices', object, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing objects complete');
-                    });
+                    // async.each(temp_objects, (object, next) => {
+                    //     db.addDocument('ot_vertices', object).then(() => {
+                    //         updateImportNumber('ot_vertices', object, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing objects complete');
+                    // });
 
                     var temp_locations = [];
                     for (const i in locations) {
@@ -1240,15 +1498,15 @@ module.exports = () => ({
                         vertices_list.push(locations[i]);
                     }
 
-                    async.each(temp_locations, (location, next) => {
-                        db.addDocument('ot_vertices', location).then(() => {
-                            updateImportNumber('ot_vertices', location, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing business locations complete');
-                    });
+                    // async.each(temp_locations, (location, next) => {
+                    //     db.addDocument('ot_vertices', location).then(() => {
+                    //         updateImportNumber('ot_vertices', location, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing business locations complete');
+                    // });
 
                     var temp_batches = [];
                     for (const i in batches) {
@@ -1256,15 +1514,15 @@ module.exports = () => ({
                         vertices_list.push(batches[i]);
                     }
 
-                    async.each(temp_batches, (batch, next) => {
-                        db.addDocument('ot_vertices', batch).then(() => {
-                            updateImportNumber('ot_vertices', batch, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing batches complete');
-                    });
+                    // async.each(temp_batches, (batch, next) => {
+                    //     db.addDocument('ot_vertices', batch).then(() => {
+                    //         updateImportNumber('ot_vertices', batch, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing batches complete');
+                    // });
 
 
                     var temp_object_events = [];
@@ -1273,15 +1531,15 @@ module.exports = () => ({
                         vertices_list.push(object_events[i]);
                     }
 
-                    async.each(temp_object_events, (event, next) => {
-                        db.addDocument('ot_vertices', event).then(() => {
-                            updateImportNumber('ot_vertices', event, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing object events complete');
-                    });
+                    // async.each(temp_object_events, (event, next) => {
+                    //     db.addDocument('ot_vertices', event).then(() => {
+                    //         updateImportNumber('ot_vertices', event, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing object events complete');
+                    // });
 
                     var temp_aggregation_events = [];
                     for (const i in aggregation_events) {
@@ -1289,15 +1547,15 @@ module.exports = () => ({
                         vertices_list.push(aggregation_events[i]);
                     }
 
-                    async.each(temp_aggregation_events, (event, next) => {
-                        db.addDocument('ot_vertices', event).then(() => {
-                            updateImportNumber('ot_vertices', event, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing aggregation events complete');
-                    });
+                    // async.each(temp_aggregation_events, (event, next) => {
+                    //     db.addDocument('ot_vertices', event).then(() => {
+                    //         updateImportNumber('ot_vertices', event, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing aggregation events complete');
+                    // });
 
                     var temp_transformation_events = [];
                     for (const i in transformation_events) {
@@ -1305,157 +1563,157 @@ module.exports = () => ({
                         vertices_list.push(transformation_events[i]);
                     }
 
-                    async.each(temp_transformation_events, (event, next) => {
-                        db.addDocument('ot_vertices', event).then(() => {
-                            updateImportNumber('ot_vertices', event, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing transformation events complete');
-                    });
+                    // async.each(temp_transformation_events, (event, next) => {
+                    //     db.addDocument('ot_vertices', event).then(() => {
+                    //         updateImportNumber('ot_vertices', event, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing transformation events complete');
+                    // });
 
 
                     for (const i in instance_of_edges) {
                         edges_list.push(instance_of_edges[i]);
                     }
 
-                    async.each(instance_of_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing instance_of edges complete');
-                    });
+                    // async.each(instance_of_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing instance_of edges complete');
+                    // });
 
                     for (const i in owned_by_edges) {
                         edges_list.push(owned_by_edges[i]);
                     }
 
-                    async.each(owned_by_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing owned_by edges complete');
-                    });
+                    // async.each(owned_by_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing owned_by edges complete');
+                    // });
 
                     for (const i in at_edges) {
                         edges_list.push(at_edges[i]);
                     }
 
-                    async.each(at_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing at_edges complete');
-                    });
+                    // async.each(at_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing at_edges complete');
+                    // });
 
 
                     for (const i in read_point_edges) {
                         edges_list.push(read_point_edges[i]);
                     }
 
-                    async.each(read_point_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing read_point edges  complete');
-                    });
+                    // async.each(read_point_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing read_point edges  complete');
+                    // });
 
                     for (const i in event_batch_edges) {
                         edges_list.push(event_batch_edges[i]);
                     }
 
-                    async.each(event_batch_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing event_batch edges  complete');
-                    });
+                    // async.each(event_batch_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing event_batch edges  complete');
+                    // });
 
                     for (const i in parent_batches_edges) {
                         edges_list.push(parent_batches_edges[i]);
                     }
 
-                    async.each(parent_batches_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing parent_batches edges  complete');
-                    });
+                    // async.each(parent_batches_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing parent_batches edges  complete');
+                    // });
 
                     for (const i in child_batches_edges) {
                         edges_list.push(child_batches_edges[i]);
                     }
 
-                    async.each(child_batches_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing child_batches edges  complete');
-                    });
+                    // async.each(child_batches_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing child_batches edges  complete');
+                    // });
 
                     for (const i in input_batches_edges) {
                         edges_list.push(input_batches_edges[i]);
                     }
 
-                    async.each(input_batches_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing input_batches edges  complete');
-                    });
+                    // async.each(input_batches_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing input_batches edges  complete');
+                    // });
 
                     for (const i in output_batches_edges) {
                         edges_list.push(output_batches_edges[i]);
                     }
 
-                    async.each(output_batches_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing output_batches edges  complete');
-                    });
+                    // async.each(output_batches_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing output_batches edges  complete');
+                    // });
 
                     for (const i in business_location_edges) {
                         edges_list.push(business_location_edges[i]);
                     }
 
-                    async.each(business_location_edges, (edge, next) => {
-                        db.addDocument('ot_edges', edge).then(() => {
-                            updateImportNumber('ot_edges', edge, import_id).then(() => {
-                                next();
-                            });
-                        });
-                    }, () => {
-                        console.log('Writing business_location edges  complete');
-                    });
+                    // async.each(business_location_edges, (edge, next) => {
+                    //     db.addDocument('ot_edges', edge).then(() => {
+                    //         updateImportNumber('ot_edges', edge, import_id).then(() => {
+                    //             next();
+                    //         });
+                    //     });
+                    // }, () => {
+                    //     console.log('Writing business_location edges  complete');
+                    // });
 
 
                     utilities.executeCallback(

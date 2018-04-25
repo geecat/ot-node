@@ -1,11 +1,11 @@
 /* eslint-disable indent,no-trailing-spaces */
 const gs1importer = require('./modules/gs1-importer')();
-var xmlpath = './importers/validation_test.xml';
+const xmlpath = './importers/validation_test.xml';
+const xsdpath = './importers/EPCglobal-epcis-masterdata-1_2.xsd';
 
 
-
-gs1importer.parseGS1(xmlpath, (response) => {
-     console.log(response)
+gs1importer.parseGS1(xmlpath, xsdpath, (response) => {
+     console.log(response);
 
      // for(let a in whole_object) {
      //     let s = whole_object[a];
