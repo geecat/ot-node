@@ -393,7 +393,7 @@ describe('Arangojs module ', async () => {
     });
 
     describe('Vertex versioning', () => {
-        it('should add version to identified vertex', async () => {
+        it('should add version to a new vertex', async () => {
             const dummyVertex = {
                 _key: 'dummyKey',
                 identifiers: {
@@ -403,6 +403,23 @@ describe('Arangojs module ', async () => {
                 sender_id: 'dummySenderId',
             };
             const response = await testDb.addVertex(dummyVertex);
+            expect(response).to.include.all.keys('_id', '_key', '_rev');
+            expect(dummyVertex).to.have.property('version', 1);
+        });
+        it('should leave version as is to already existing vertex', async () => {
+            const dummyVertex = {
+                _key: 'dummyKey1',
+                identifiers: {
+                    id: 'dummyId1',
+                    uid: 'dummyUid1',
+                },
+                sender_id: 'dummySenderId1',
+            };
+            let response = await testDb.addVertex(dummyVertex);
+            expect(response).to.include.all.keys('_id', '_key', '_rev');
+            expect(dummyVertex).to.have.property('version', 1);
+
+            response = await testDb.addVertex(dummyVertex);
             expect(response).to.include.all.keys('_id', '_key', '_rev');
             expect(dummyVertex).to.have.property('version', 1);
         });
