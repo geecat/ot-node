@@ -135,7 +135,8 @@ library SafeMath {
  	function initiateEscrow(address DC_wallet, address DH_wallet, bytes32 DH_node_id, bytes32 offer_hash, uint token_amount, uint stake_amount,  uint total_time_in_minutes)
  	public onlyOwner{
 
- 		bytes32 escrow_hash = keccak256(abi.encodePacked(offer_hash, DH_wallet, DH_node_id));
+ 		bytes32 escrow_hash = keccak256(offer_hash, DH_wallet, DH_node_id);
+ 		// bytes32 escrow_hash = keccak256(abi.encodePacked(offer_hash, DH_wallet, DH_node_id));
 
  		require(escrow[escrow_hash].escrow_status != EscrowStatus.active
  			&&  escrow[escrow_hash].escrow_status != EscrowStatus.canceled);
@@ -161,12 +162,12 @@ library SafeMath {
  	    
  	    require(this_escrow.DC_wallet == msg.sender &&
  	        this_escrow.escrow_status == EscrowStatus.initiated &&
- 	        this_escrow.total_data_hash == 0);
+ 	        this_escrow.total_data_hash == bytes32(0));
  	        
  	    this_escrow.total_data_hash = root_hash;
  	}
 
- 	function verifyEscrow(address DC_wallet, bytes32 escrow_hash, uint token_amount, uint stake_amount, uint total_time_in_minutes)
+ 	function verifyEscrow(address DC_wallet, bytes32 escrow_hash, uint token_amount, uint stake_amount, uint total_time_in_minutes, bytes32 root_hash)
  	public returns (bool isVerified){
  		isVerified = false;
 
@@ -177,7 +178,8 @@ library SafeMath {
  			this_escrow.token_amount == token_amount &&
  			this_escrow.stake_amount == stake_amount &&
  			this_escrow.escrow_status == EscrowStatus.initiated &&
- 			this_escrow.total_time_in_seconds == total_time_in_minutes.mul(60));
+ 			this_escrow.total_time_in_seconds == total_time_in_minutes.mul(60) &&
+ 			this_escrow.total_data_hash == root_hash);
 
  		//Transfer the stake_amount to the escrow
  		bidding.decreaseBalance(msg.sender, stake_amount);
@@ -338,7 +340,8 @@ library SafeMath {
 				return false;
 			}
 			else {
-				this_litigation.requested_data = keccak256(abi.encodePacked(requested_data, this_litigation.requested_data_index));
+				this_litigation.requested_data = keccak256(requested_data, this_litigation.requested_data_index);
+				// this_litigation.requested_data = keccak256(abi.encodePacked(requested_data, this_litigation.requested_data_index));
 				emit LitigationAnswered(escrow_hash);
 				return true;
 			}
@@ -364,19 +367,24 @@ library SafeMath {
 
 			uint256 i = 0;
 			uint256 one = 1;
-			bytes32 proof_hash = keccak256(abi.encodePacked(proof_data, this_litigation.requested_data_index));	
+			bytes32 proof_hash = keccak256(proof_data, this_litigation.requested_data_index);	
+			// bytes32 proof_hash = keccak256(abi.encodePacked(proof_data, this_litigation.requested_data_index));	
 			bytes32 answer_hash = this_litigation.requested_data;
 
 			// ako je bit 1 on je levo
 			while (i < this_litigation.hash_array.length){
 
 				if( ((one << i) & this_litigation.requested_data_index) != 0 ){
-					proof_hash = keccak256(abi.encodePacked(this_litigation.hash_array[i], proof_hash));
-					answer_hash = keccak256(abi.encodePacked(this_litigation.hash_array[i], answer_hash));
+					proof_hash = keccak256(this_litigation.hash_array[i], proof_hash);
+					answer_hash = keccak256(this_litigation.hash_array[i], answer_hash);
+					// proof_hash = keccak256(abi.encodePacked(this_litigation.hash_array[i], proof_hash));
+					// answer_hash = keccak256(abi.encodePacked(this_litigation.hash_array[i], answer_hash));
 				}
 				else {
-					proof_hash = keccak256(abi.encodePacked(proof_hash, this_litigation.hash_array[i]));
-					answer_hash = keccak256(abi.encodePacked(answer_hash, this_litigation.hash_array[i]));
+					proof_hash = keccak256(proof_hash, this_litigation.hash_array[i]);
+					answer_hash = keccak256(answer_hash, this_litigation.hash_array[i]);
+					// proof_hash = keccak256(abi.encodePacked(proof_hash, this_litigation.hash_array[i]));
+					// answer_hash = keccak256(abi.encodePacked(answer_hash, this_litigation.hash_array[i]));
 				}
 				i++;
 			}

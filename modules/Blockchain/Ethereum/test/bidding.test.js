@@ -20,6 +20,7 @@ const min_stake_amount = 10e12;
 const min_reputation = 0;
 
 // Profile variables
+var escrow_hash = [];
 var chosen_bids = [];
 var node_id = [];
 var DH_balance = [];
@@ -196,7 +197,7 @@ contract('Bidding testing', async (accounts) => {
 
         console.log(`\t Data hash ${data_hash}`);
 
-        offer_hash = await util.keccak3(accounts[0], node_id[0], data_id);
+        offer_hash = await util.keccakOffer(accounts[0], node_id[0], data_id);
         console.log(`\t offer_hash: ${offer_hash}`);
 
         await bidding.createOffer(
@@ -280,10 +281,12 @@ contract('Bidding testing', async (accounts) => {
         // Get instances of contracts used in the test
         const bidding = await Bidding.deployed();
 
+        var promises = [];
         for (var i = 3; i < 10; i += 1) {
             // eslint-disable-next-line no-await-in-loop
-            await bidding.addBid(offer_hash, node_id[i], { from: accounts[i] });
+            promises[i] = bidding.addBid(offer_hash, node_id[i], { from: accounts[i] });
         }
+        await Promise.all(promises);
 
         const response = await bidding.offer.call(offer_hash);
         const first_bid_index = response[7].toNumber();
@@ -305,22 +308,83 @@ contract('Bidding testing', async (accounts) => {
         // Get instances of contracts used in the test
         const bidding = await Bidding.deployed();
         const escrow = await EscrowHolder.deployed();
+        const util = await TestingUtilities.deployed();
 
         chosen_bids = await bidding.chooseBids.call(offer_hash, { from: DC_wallet });
         console.log(`\t chosen DH indexes: ${JSON.stringify(chosen_bids)}`);
 
         for (var i = 0; i < chosen_bids.length; i += 1) {
             chosen_bids[i] = chosen_bids[i].toNumber() + 1;
+            // console.log(chosen_bids[i]);
+        }
+
+        for (i = 0; i < chosen_bids.length; i += 1) {
+            // eslint-disable-next-line
+            escrow_hash[i] = await util.escrowHash.call(offer_hash, accounts[chosen_bids[i]], node_id[chosen_bids[i]]);
         }
 
         await bidding.chooseBids(offer_hash).then((res) => {
-            console.log(res.tx);
+            // console.log(res.tx);
         });
         for (i = 0; i < chosen_bids.length; i += 1) {
             // eslint-disable-next-line
-            var response = await escrow.escrow.call(DC_wallet, accounts[chosen_bids[i]], offer_hash);
+            var response = await escrow.escrow.call(escrow_hash[i]);
             console.log(`\t escrow for profile ${chosen_bids[i]}: ${JSON.stringify(response)}`);
         }
+    });
+
+    // Merkle tree structure
+    /*      / \
+           /   \
+          /     \
+         /       \
+        /         \
+       / \       / \
+      /   \     /   \
+     /\   /\   /\   /\
+    A  B C  D E  F G  H
+    */
+
+    var requested_data = [];
+    var hash_AB;
+    var hash_CD;
+    var hash_EF;
+    var hash_GH;
+    var hash_ABCD;
+    var hash_EFGH;
+    var root_hash;
+
+    // eslint-disable-next-line no-undef
+    it('Should calculate and add all root hashes', async () => {
+        // Get instances of contracts used in the test
+        const escrow = await EscrowHolder.deployed();
+        const util = await TestingUtilities.deployed();
+
+        // Creating merkle tree
+        var hashes = [];
+        for (var i = 0; i < 8; i += 1) {
+            // eslint-disable-next-line no-await-in-loop
+            requested_data[i] = await util.keccakString.call('A');
+            // eslint-disable-next-line no-await-in-loop
+            hashes[i] = await util.keccakIndex.call(requested_data[i], i);
+        }
+        hash_AB = await util.keccak2hashes.call(hashes[0], hashes[1]);
+        hash_CD = await util.keccak2hashes.call(hashes[2], hashes[3]);
+        hash_EF = await util.keccak2hashes.call(hashes[4], hashes[5]);
+        hash_GH = await util.keccak2hashes.call(hashes[6], hashes[7]);
+        hash_ABCD = await util.keccak2hashes.call(hash_AB, hash_CD);
+        hash_EFGH = await util.keccak2hashes.call(hash_EF, hash_GH);
+        root_hash = await util.keccak2hashes.call(hash_ABCD, hash_EFGH);
+
+        var promises = [];
+        for (i = 0; i < chosen_bids.length; i += 1) {
+            promises[i] = escrow.addRootHash(
+                escrow_hash[i],
+                root_hash,
+                { from: DC_wallet },
+            );
+        }
+        await Promise.all(promises);
     });
 
     // eslint-disable-next-line no-undef
@@ -333,10 +397,11 @@ contract('Bidding testing', async (accounts) => {
         for (var i = 0; i < chosen_bids.length; i += 1) {
             promises[i] = escrow.verifyEscrow(
                 DC_wallet,
-                offer_hash,
+                escrow_hash[i],
                 DH_price[chosen_bids[i]] * total_escrow_time * data_size,
                 DH_stake[chosen_bids[i]] * total_escrow_time * data_size,
                 total_escrow_time,
+                root_hash,
                 { from: accounts[chosen_bids[i]] },
             );
         }
@@ -347,10 +412,10 @@ contract('Bidding testing', async (accounts) => {
         response = response.toNumber();
         console.log(`\t Escrow start time: ${response}, Escrow end time: ${response + (60 * total_escrow_time)}`);
 
-        for (i = 1; i < 10; i += 1) {
+        for (i = 0; i < chosen_bids.length; i += 1) {
             // eslint-disable-next-line no-await-in-loop
-            response = await escrow.escrow.call(DC_wallet, accounts[i], offer_hash);
-            let status = response[6];
+            response = await escrow.escrow.call(escrow_hash[i]);
+            let status = response[9];
             status = status.toNumber();
             switch (status) {
             case 0:
@@ -372,14 +437,12 @@ contract('Bidding testing', async (accounts) => {
                 status = 'err';
                 break;
             }
-            console.log(`\t EscrowStatus for account[${i}]: ${status}`);
-            if (chosen_bids.includes(i)) {
-                assert.equal(status, 'active', "Escrow wasn't verified");
-            }
+            console.log(`\t EscrowStatus for account[${chosen_bids[i]}]: ${status}`);
+            assert.equal(status, 'active', "Escrow wasn't verified");
         }
     });
-
-     // eslint-disable-next-line no-undef
+    /*
+    // eslint-disable-next-line no-undef
     it('Should wait a 30 seconds, then pay all DHs', async () => {
         // Get instances of contracts used in the test
         const escrow = await EscrowHolder.deployed();
@@ -395,7 +458,7 @@ contract('Bidding testing', async (accounts) => {
         var promises = [];
         for (var i = 0; i < chosen_bids.length; i += 1) {
             promises[i] = escrow.payOut(
-                DC_wallet, offer_hash,
+                escrow_hash[i],
                 { from: accounts[chosen_bids[i]], gas: 100000 },
             );
         }
@@ -409,7 +472,7 @@ contract('Bidding testing', async (accounts) => {
         }
     });
 
-    /* // eslint-disable-next-line no-undef
+    // eslint-disable-next-line no-undef
     it('Should wait another 30 seconds, then pay out all DH_s', async () => {
         // Get instances of contracts used in the test
         const escrow = await EscrowHolder.deployed();
@@ -426,7 +489,7 @@ contract('Bidding testing', async (accounts) => {
         var promises = [];
         for (var i = 0; i < chosen_bids.length; i += 1) {
             promises[i] = escrow.payOut(
-                DC_wallet, offer_hash,
+                escrow_hash[i],
                 { from: accounts[chosen_bids[i]], gas: 1000000 },
             );
         }
@@ -438,18 +501,18 @@ contract('Bidding testing', async (accounts) => {
             var balance = response[2].toNumber();
             console.log(`\t new DH balance[${chosen_bids[i]}]: ${balance}`);
             // TODO Fix the rounding of the token amount issue
-            // assert.equal(
-            //     balance,
-            //     // eslint-disable-next-line max-len
-            //     5e25 + (((DH_price[chosen_bids[i]] * total_escrow_time * data_size) / 1e15) * 1e15),
-            //     'DH was not paid the correct amount',
-            // ); 
+            assert.equal(
+                balance,
+                // eslint-disable-next-line max-len
+                5e25 + (Math.round((DH_price[chosen_bids[i]] * total_escrow_time * data_size) / 1e15) * 1e15),
+                'DH was not paid the correct amount',
+            );
         }
 
-        for (i = 1; i < 10; i += 1) {
+        for (i = 1; i < chosen_bids.length; i += 1) {
             // eslint-disable-next-line no-await-in-loop
-            response = await escrow.escrow.call(DC_wallet, accounts[i], offer_hash);
-            let status = response[6];
+            response = await escrow.escrow.call(escrow_hash[i]);
+            let status = response[9];
             status = status.toNumber();
             switch (status) {
             case 0:
@@ -471,10 +534,8 @@ contract('Bidding testing', async (accounts) => {
                 status = 'err';
                 break;
             }
-            console.log(`\t EscrowStatus for account[${i}]: ${status}`);
-            if (chosen_bids.includes(i)) {
-                assert.equal(status, 'completed', "Escrow wasn't completed");
-            }
+            console.log(`\t EscrowStatus for account[${chosen_bids[i]}]: ${status}`);
+            assert.equal(status, 'completed', "Escrow wasn't completed");
         }
     }); */
 });

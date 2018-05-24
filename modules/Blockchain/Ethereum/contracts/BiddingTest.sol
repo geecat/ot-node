@@ -41,7 +41,7 @@ contract ERC20 is ERC20Basic {
 }
 
 contract EscrowHolder {
-	function initiateEscrow(address DC_wallet, address DH_wallet, uint data_id, uint token_amount,uint stake_amount, uint total_time) public;
+	function initiateEscrow(address DC_wallet, address DH_wallet, bytes32 DH_node_id, bytes32 offer_hash, uint token_amount, uint stake_amount, uint total_time) public;
 }
 
 contract BiddingTest {
@@ -312,11 +312,11 @@ contract BiddingTest {
 
 			if(profile[chosen_bid.DH_wallet].balance >= chosen_bid.stake_amount && chosen_bid.active && profile[chosen_bid.DH_wallet].size_available >= this_offer.data_size){
 				//Initiating new escrow
-				escrow.initiateEscrow(msg.sender, chosen_bid.DH_wallet, uint(offer_hash), chosen_bid.token_amount, chosen_bid.stake_amount, this_offer.total_escrow_time);
+				escrow.initiateEscrow(msg.sender, chosen_bid.DH_wallet, chosen_bid.DH_node_id, offer_hash, chosen_bid.token_amount, chosen_bid.stake_amount, this_offer.total_escrow_time);
 
 				token_amount_sent = token_amount_sent.add(chosen_bid.token_amount);
 
-				//chosen_DH.size_available = chosen_DH.size_available.sub(this_offer.data_size);
+				chosen_DH.size_available = chosen_DH.size_available.sub(this_offer.data_size);
 
 				chosen_bid.chosen = true;
 				chosen_data_holders[current_index] = i;
@@ -340,7 +340,7 @@ contract BiddingTest {
 
 			if(profile[chosen_bid.DH_wallet].balance >= chosen_bid.stake_amount && profile[chosen_bid.DH_wallet].size_available >= this_offer.data_size){
 				//Initiating new escrow
-				escrow.initiateEscrow(msg.sender, chosen_bid.DH_wallet, uint(offer_hash), chosen_bid.token_amount, chosen_bid.stake_amount, this_offer.total_escrow_time);
+				escrow.initiateEscrow(msg.sender, chosen_bid.DH_wallet, chosen_bid.DH_node_id, offer_hash, chosen_bid.token_amount, chosen_bid.stake_amount, this_offer.total_escrow_time);
 
 				token_amount_sent = token_amount_sent.add(chosen_bid.token_amount);
 
