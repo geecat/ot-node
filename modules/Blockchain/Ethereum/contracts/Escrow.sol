@@ -317,7 +317,7 @@ library SafeMath {
 
 			litigation[escrow_hash].requested_data_index = requested_data_index;
 			litigation[escrow_hash].hash_array = hash_array;
-			litigation[escrow_hash].litigation_start_time = block.number;
+			litigation[escrow_hash].litigation_start_time = block.timestamp;
 			litigation[escrow_hash].litigation_status = LitigationStatus.started;
 
 			emit LitigationStarted(escrow_hash, requested_data_index);
@@ -333,7 +333,7 @@ library SafeMath {
 					this_litigation.litigation_start_time > 0 && this_litigation.litigation_status == LitigationStatus.started);
 
 			if(block.timestamp > this_litigation.litigation_start_time + 30 minutes){
-				this_litigation.litigation_status = LitigationStatus.completed;
+				this_litigation.litigation_status = LitigationStatus.timed_out;
 				bidding.increaseBalance(this_escrow.DC_wallet, this_escrow.stake_amount);
 				this_escrow.stake_amount = 0;
 				emit LitigationTimedOut(escrow_hash);
@@ -356,13 +356,12 @@ library SafeMath {
 				this_litigation.litigation_start_time > 0 && 
 				this_litigation.litigation_status != LitigationStatus.completed);
 
-			if (this_litigation.litigation_status == LitigationStatus.started || this_litigation.litigation_status == LitigationStatus.timed_out) {
-				require(block.timestamp > this_litigation.litigation_start_time + 30 minutes);
+			if (block.timestamp > this_litigation.litigation_start_time + 30 minutes){
 				this_litigation.litigation_status = LitigationStatus.completed;
 				this_escrow.escrow_status = EscrowStatus.completed;
 				bidding.increaseBalance(msg.sender, this_escrow.stake_amount);
 				this_escrow.stake_amount = 0;
-				// send tokens to Dc
+				// send tokens to DC
 			}
 
 			uint256 i = 0;

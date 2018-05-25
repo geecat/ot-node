@@ -344,8 +344,9 @@ contract('Bidding testing', async (accounts) => {
      /\   /\   /\   /\
     A  B C  D E  F G  H
     */
-
+    var requested_data_index = 5;
     var requested_data = [];
+    var hashes = [];
     var hash_AB;
     var hash_CD;
     var hash_EF;
@@ -361,7 +362,6 @@ contract('Bidding testing', async (accounts) => {
         const util = await TestingUtilities.deployed();
 
         // Creating merkle tree
-        var hashes = [];
         for (var i = 0; i < 8; i += 1) {
             // eslint-disable-next-line no-await-in-loop
             requested_data[i] = await util.keccakString.call('A');
@@ -440,7 +440,82 @@ contract('Bidding testing', async (accounts) => {
             console.log(`\t EscrowStatus for account[${chosen_bids[i]}]: ${status}`);
             assert.equal(status, 'active', "Escrow wasn't verified");
         }
+
+        for (i = 0; i < chosen_bids.length; i += 1) {
+            // eslint-disable-next-line
+            var response = await escrow.escrow.call(escrow_hash[i]);
+            console.log(`\t escrow for profile ${chosen_bids[i]}: ${JSON.stringify(response)}`);
+        }
     });
+
+    // eslint-disable-next-line no-undef
+    it('Should create 2 litigations about data no 6', async () => {
+        // Get instances of contracts used in the test
+        const escrow = await EscrowHolder.deployed();
+
+        // TODO Find a way not to hard code this test
+        requested_data_index = 5;
+        var hash_array = [];
+        hash_array.push(hashes[4]);
+        hash_array.push(hash_GH);
+        hash_array.push(hash_ABCD);
+
+        await escrow.initateLitigation(
+            escrow_hash[0],
+            requested_data_index,
+            hash_array,
+            { from: DC_wallet },
+        );
+        await escrow.initateLitigation(escrow_hash[1], requested_data_index, hash_array);
+    });
+
+    // eslint-disable-next-line no-undef
+    it('Should answer litigations, one correctly, one incorrectly', async () => {
+        // Get instances of contracts used in the test
+        const escrow = await EscrowHolder.deployed();
+
+        await escrow.answerLitigation(
+            escrow_hash[0],
+            requested_data[requested_data_index],
+            { from: accounts[chosen_bids[0]] },
+        );
+        await escrow.answerLitigation(
+            escrow_hash[1],
+            requested_data[requested_data_index + 1],
+            { from: accounts[chosen_bids[1]] },
+        );
+
+        for (var i = 0; i < chosen_bids.length; i += 1) {
+            // eslint-disable-next-line
+            var response = await escrow.litigation.call(escrow_hash[i]);
+            console.log(`\t litigation for profile ${chosen_bids[i]}: ${JSON.stringify(response)}`);
+        }
+    });
+
+    // eslint-disable-next-line no-undef
+    it('Should prove litigations, both correctly', async () => {
+        // Get instances of contracts used in the test
+        const escrow = await EscrowHolder.deployed();
+        const util = await TestingUtilities.deployed();
+
+        await escrow.proveLitigaiton(
+            escrow_hash[0],
+            requested_data[requested_data_index],
+            { from: DC_wallet },
+        );
+        await escrow.proveLitigaiton(
+            escrow_hash[1],
+            requested_data[requested_data_index],
+            { from: DC_wallet },
+        );
+
+        for (var i = 0; i < chosen_bids.length; i += 1) {
+            // eslint-disable-next-line
+            var response = await escrow.litigation.call(escrow_hash[i]);
+            console.log(`\t litigation for profile ${chosen_bids[i]}: ${JSON.stringify(response)}`);
+        }
+    });
+
 
     // eslint-disable-next-line no-undef
     it('Should wait a 30 seconds, then pay all DHs', async () => {
@@ -487,7 +562,7 @@ contract('Bidding testing', async (accounts) => {
         console.log(`\t Escrow finish time: ${response}`);
 
         var promises = [];
-        for (var i = 0; i < chosen_bids.length; i += 1) {
+        for (var i = 2; i < chosen_bids.length; i += 1) {
             promises[i] = escrow.payOut(
                 escrow_hash[i],
                 { from: accounts[chosen_bids[i]], gas: 1000000 },
@@ -503,13 +578,13 @@ contract('Bidding testing', async (accounts) => {
             // TODO Fix the rounding of the token amount issue
             // assert.equal(
             //     balance,
-            //     // eslint-disable-next-line max-len
+            // eslint-disable-next-line max-len
             //     5e25 + (Math.round((DH_price[chosen_bids[i]] * total_escrow_time * data_size) / 1e15) * 1e15),
             //     'DH was not paid the correct amount',
             // );
         }
 
-        for (i = 0; i < chosen_bids.length; i += 1) {
+        for (i = 2; i < chosen_bids.length; i += 1) {
             // eslint-disable-next-line no-await-in-loop
             response = await escrow.escrow.call(escrow_hash[i]);
             let status = response[9];
@@ -536,6 +611,11 @@ contract('Bidding testing', async (accounts) => {
             }
             console.log(`\t EscrowStatus for account[${chosen_bids[i]}]: ${status}`);
             assert.equal(status, 'completed', "Escrow wasn't completed");
+        }
+        for (i = 0; i < chosen_bids.length; i += 1) {
+            // eslint-disable-next-line
+            var response = await escrow.escrow.call(escrow_hash[i]);
+            console.log(`\t escrow for profile ${chosen_bids[i]}: ${JSON.stringify(response)}`);
         }
     });
 });
