@@ -84,20 +84,22 @@ class GS1Importer {
 
         // Check for events.
         // Types: Transport, Transformation, Observation and Ownership.
-        for (const objectEvent of GS1Helper.arrayze(eventListElement.ObjectEvent)) {
-            events.push(objectEvent);
-        }
-
-        if (eventListElement.AggregationEvent) {
-            for (const aggregationEvent of GS1Helper.arrayze(eventListElement.AggregationEvent)) {
-                events.push(aggregationEvent);
+        if (eventListElement) {
+            for (const objectEvent of GS1Helper.arrayze(eventListElement.ObjectEvent)) {
+                events.push(objectEvent);
             }
-        }
+            if (eventListElement.AggregationEvent) {
+                const aggregationEvents = GS1Helper.arrayze(eventListElement.AggregationEvent);
+                for (const aggregationEvent of aggregationEvents) {
+                    events.push(aggregationEvent);
+                }
+            }
 
-        if (eventListElement.extension && eventListElement.extension.TransformationEvent) {
-            for (const transformationEvent of
-                GS1Helper.arrayze(eventListElement.extension.TransformationEvent)) {
-                events.push(transformationEvent);
+            if (eventListElement.extension && eventListElement.extension.TransformationEvent) {
+                for (const transformationEvent of
+                    GS1Helper.arrayze(eventListElement.extension.TransformationEvent)) {
+                    events.push(transformationEvent);
+                }
             }
         }
 
