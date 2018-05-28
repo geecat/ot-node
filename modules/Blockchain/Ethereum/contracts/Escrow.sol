@@ -109,7 +109,6 @@ library SafeMath {
 
  	struct EscrowDefinition{
  		address DC_wallet;
- 		address DH_wallet;
 
  		uint token_amount;
  		uint tokens_sent;
@@ -122,51 +121,45 @@ library SafeMath {
  		
  		bytes32 total_data_hash;
  		uint decryption_key_checksum;
+
  		EscrowStatus escrow_status;
  	}
 
- 	mapping(bytes32 => EscrowDefinition) public escrow;
+ 	mapping(bytes32 => mapping( address => EscrowDefinition)) public escrow;
 
- 	event EscrowInitated(address DC_wallet, address DH_wallet, bytes32 offer_hash, bytes32 escrow_hash,  uint token_amount, uint stake_amount,  uint total_time_in_seconds);
- 	event EscrowVerified(bytes32 escrow_hash, bool verification_successful);
- 	event EscrowStarted(bytes32 escrow_hash, uint timestamp);
- 	event EscrowCanceled(bytes32 escrow_hash);
- 	event EscrowCompleted(bytes32 escrow_hash);
+ 	event EscrowInitated(address DC_wallet, address DH_wallet, bytes32 offer_hash, uint token_amount, uint stake_amount, uint total_time_in_minutes);
+ 	event EscrowVerified(bytes32 import_id, address DC_wallet, bool verification_successful);
+ 	event EscrowStarted(bytes32 import_id, address DC_wallet, uint timestamp);
+ 	event EscrowCanceled(bytes32 import_id, address DC_wallet);
+ 	event EscrowCompleted(bytes32 import_id, address DC_wallet);
 
- 	function initiateEscrow(address DC_wallet, address DH_wallet, bytes32 DH_node_id, bytes32 offer_hash, uint token_amount, uint stake_amount,  uint total_time_in_minutes)
+ 	function initiateEscrow(address DC_wallet, address DH_wallet, bytes32 DH_node_id, bytes32 import_id, uint token_amount, uint stake_amount,  uint total_time_in_minutes)
  	public onlyOwner{
 
- 		bytes32 escrow_hash = keccak256(offer_hash, DH_wallet, DH_node_id);
- 		// bytes32 escrow_hash = keccak256(abi.encodePacked(offer_hash, DH_wallet, DH_node_id));
-
- 		require(escrow[escrow_hash].escrow_status != EscrowStatus.active
- 			&&  escrow[escrow_hash].escrow_status != EscrowStatus.canceled);
+ 		require(escrow[import_id][DH_wallet].escrow_status != EscrowStatus.active
+ 			&&  escrow[import_id][DH_wallet].escrow_status != EscrowStatus.canceled);
 
  		require(total_time_in_minutes > 0);
 
- 		escrow[escrow_hash].DC_wallet = DC_wallet;
- 		escrow[escrow_hash].DH_wallet = DH_wallet;
+ 		escrow[import_id][DH_wallet].DC_wallet = DC_wallet;
+ 		escrow[import_id][DH_wallet].token_amount = token_amount;
+ 		escrow[import_id][DH_wallet].tokens_sent = 0;
+ 		escrow[import_id][DH_wallet].stake_amount = stake_amount;
+ 		escrow[import_id][DH_wallet].last_confirmation_time = 0;
+ 		escrow[import_id][DH_wallet].end_time = 0;
+ 		escrow[import_id][DH_wallet].total_time_in_seconds = total_time_in_minutes.mul(60);
+ 		escrow[import_id][DH_wallet].escrow_status = EscrowStatus.initiated;
 
- 		escrow[escrow_hash].token_amount = token_amount;
- 		escrow[escrow_hash].tokens_sent = 0;
- 		escrow[escrow_hash].stake_amount = stake_amount;
- 		escrow[escrow_hash].last_confirmation_time = 0;
- 		escrow[escrow_hash].end_time = 0;
- 		escrow[escrow_hash].total_time_in_seconds = total_time_in_minutes.mul(60);
- 		escrow[escrow_hash].escrow_status = EscrowStatus.initiated;
-
- 		emit EscrowInitated(DC_wallet, DH_wallet, offer_hash, escrow_hash, token_amount, stake_amount, total_time_in_minutes);
+ 		emit EscrowInitated(DC_wallet, DH_wallet, import_id, token_amount, stake_amount, total_time_in_minutes);
  	}
  	
- 	function verifyEscrow(address DC_wallet, bytes32 escrow_hash, uint token_amount, uint stake_amount, uint total_time_in_minutes, bytes32 root_hash, uint decryption_key_checksum)
+ 	function verifyEscrow(bytes32 import_id, uint token_amount, uint stake_amount, uint total_time_in_minutes, bytes32 root_hash, uint decryption_key_checksum)
  	public returns (bool isVerified){
  		isVerified = false;
 
- 		EscrowDefinition storage this_escrow = escrow[escrow_hash];
+ 		EscrowDefinition storage this_escrow = escrow[import_id][msg.sender];
 
- 		require(this_escrow.DH_wallet == msg.sender &&
- 				this_escrow.DC_wallet == DC_wallet &&
- 			this_escrow.token_amount == token_amount &&
+ 		require(this_escrow.token_amount == token_amount &&
  			this_escrow.stake_amount == stake_amount &&
  			this_escrow.escrow_status == EscrowStatus.initiated &&
  			this_escrow.total_time_in_seconds == total_time_in_minutes.mul(60));
@@ -175,34 +168,34 @@ library SafeMath {
  		this_escrow.decryption_key_checksum = decryption_key_checksum;
 
  		//Transfer the stake_amount to the escrow
- 		bidding.decreaseBalance(this_escrow.DH_wallet, stake_amount);
+ 		bidding.decreaseBalance(msg.sender, stake_amount);
 
  		this_escrow.escrow_status = EscrowStatus.verified;
  		isVerified = true;
- 		emit EscrowVerified(escrow_hash, isVerified);
+ 		emit EscrowVerified(import_id, msg.sender, isVerified);
  	}
 
- 	function verifyHashes(bytes32 escrow_hash)
+ 	function verifyHashes(bytes32 import_id, address DH_wallet)
  	public {
- 	    EscrowDefinition storage this_escrow = escrow[escrow_hash];
+ 	    EscrowDefinition storage this_escrow = escrow[import_id][DH_wallet];
  	    
  	    require(this_escrow.DC_wallet == msg.sender &&
  	        this_escrow.escrow_status == EscrowStatus.verified);
 
  		this_escrow.last_confirmation_time = block.timestamp;
- 		this_escrow.end_time = SafeMath.add(block.timestamp, total_time_in_minutes.mul(60));
+ 		this_escrow.end_time = SafeMath.add(block.timestamp, this_escrow.total_time_in_seconds);
  	        
  		this_escrow.escrow_status = EscrowStatus.verified;
- 	    emit EscrowStarted(escrow_hash, block.timestamp);
+ 	    emit EscrowStarted(import_id, DH_wallet, block.timestamp);
  	}
 
 
 
- 	function payOut(bytes32 escrow_hash)
+ 	function payOut(bytes32 import_id)
  	public{
- 		EscrowDefinition storage this_escrow = escrow[escrow_hash];
+ 		EscrowDefinition storage this_escrow = escrow[import_id][msg.sender];
 
- 		require(this_escrow.DH_wallet == msg.sender && this_escrow.escrow_status == EscrowStatus.active);
+ 		require(this_escrow.escrow_status == EscrowStatus.active);
 
  		uint256 amount_to_send;
 
@@ -217,7 +210,7 @@ library SafeMath {
  			}
  			amount_to_send = SafeMath.sub(this_escrow.token_amount, this_escrow.tokens_sent);
  			this_escrow.escrow_status = EscrowStatus.completed;
- 			emit EscrowCompleted(escrow_hash);
+ 			emit EscrowCompleted(import_id, msg.sender);
  		}
  		else{
  			amount_to_send = SafeMath.mul(this_escrow.token_amount,SafeMath.sub(end_time,this_escrow.last_confirmation_time)) / this_escrow.total_time_in_seconds;
@@ -230,9 +223,9 @@ library SafeMath {
  		}
  	}
 
- 	function cancelEscrow(bytes32 escrow_hash)
+ 	function cancelEscrow(bytes32 import_id, address DH_wallet)
  	public {
- 		EscrowDefinition storage this_escrow = escrow[escrow_hash];
+ 		EscrowDefinition storage this_escrow = escrow[import_id][DH_wallet];
 
  		require(this_escrow.DC_wallet == msg.sender &&
  			this_escrow.escrow_status != EscrowStatus.completed &&
@@ -262,15 +255,15 @@ library SafeMath {
  		amount_to_send = SafeMath.sub(this_escrow.token_amount, this_escrow.tokens_sent);
  		if(amount_to_send > 0) {
  			this_escrow.tokens_sent = this_escrow.tokens_sent.add(amount_to_send);
- 			bidding.increaseBalance(this_escrow.DH_wallet, amount_to_send);
+ 			bidding.increaseBalance(DH_wallet, amount_to_send);
  		}
 
  		uint stake_to_send = this_escrow.stake_amount;
  		this_escrow.stake_amount = 0;
- 		if(stake_to_send > 0) bidding.increaseBalance(this_escrow.DH_wallet, amount_to_send);
+ 		if(stake_to_send > 0) bidding.increaseBalance(DH_wallet, amount_to_send);
 
  		this_escrow.escrow_status = EscrowStatus.completed;
- 		emit EscrowCanceled(escrow_hash);
+ 		emit EscrowCanceled(import_id, DH_wallet);
  	}
 
  	/*    ----------------------------- LITIGATION -----------------------------     */
@@ -307,60 +300,60 @@ library SafeMath {
 			LitigationStatus litigation_status;
 		}
 
-		event LitigationInitiated(bytes32 escrow_hash, uint requested_data_index);
-		event LitigationAnswered(bytes32 escrow_hash);
-		event LitigationTimedOut(bytes32 escrow_hash);
-		event LitigationCompleted(bytes32 escrow_hash, bool DH_was_penalized);
+		event LitigationInitiated(bytes32 import_id, address DH_wallet, uint requested_data_index);
+		event LitigationAnswered(bytes32 import_id, address DH_wallet);
+		event LitigationTimedOut(bytes32 import_id, address DH_wallet);
+		event LitigationCompleted(bytes32 import_id, address DH_wallet, bool DH_was_penalized);
 
-		mapping(bytes32 => LitigationDefinition) public litigation;
+		mapping(bytes32 => mapping ( address => LitigationDefinition)) public litigation;
 
-		function initateLitigation(bytes32 escrow_hash, uint requested_data_index, bytes32[] hash_array)
+		function initateLitigation(bytes32 import_id, address DH_wallet, uint requested_data_index, bytes32[] hash_array)
 		public returns (bool newLitigationInitiated){
+			LitigationDefinition storage this_litigation = litigation[import_id][DH_wallet];
+			EscrowDefinition storage this_escrow = escrow[import_id][DH_wallet];
 
-			require(escrow[escrow_hash].DC_wallet == msg.sender &&
-				escrow[escrow_hash].escrow_status == EscrowStatus.active);
-			require(litigation[escrow_hash].litigation_start_time == 0 || litigation[escrow_hash].litigation_status == LitigationStatus.completed);
+			require(this_escrow.DC_wallet == msg.sender && this_escrow.escrow_status == EscrowStatus.active);
+			require(this_litigation.litigation_start_time == 0 || this_litigation.litigation_status == LitigationStatus.completed);
 
-			litigation[escrow_hash].requested_data_index = requested_data_index;
-			litigation[escrow_hash].hash_array = hash_array;
-			litigation[escrow_hash].litigation_start_time = block.timestamp;
-			litigation[escrow_hash].litigation_status = LitigationStatus.initiated;
+			this_litigation.requested_data_index = requested_data_index;
+			this_litigation.hash_array = hash_array;
+			this_litigation.litigation_start_time = block.timestamp;
+			this_litigation.litigation_status = LitigationStatus.initiated;
 
-			emit LitigationInitiated(escrow_hash, requested_data_index);
+			emit LitigationInitiated(import_id, DH_wallet, requested_data_index);
 			return true;
 		}
 
-		function answerLitigation(bytes32 escrow_hash, bytes32 requested_data)
+		function answerLitigation(bytes32 import_id, bytes32 requested_data)
 		public returns (bool answer_accepted){
-			LitigationDefinition storage this_litigation = litigation[escrow_hash];
-			EscrowDefinition storage this_escrow = escrow[escrow_hash];
+			LitigationDefinition storage this_litigation = litigation[import_id][msg.sender];
+			EscrowDefinition storage this_escrow = escrow[import_id][msg.sender];
 
-			require(this_escrow.DH_wallet == msg.sender &&
-					this_litigation.litigation_start_time > 0 && this_litigation.litigation_status == LitigationStatus.initiated);
+			require(this_litigation.litigation_start_time > 0 && this_litigation.litigation_status == LitigationStatus.initiated);
 
 			if(block.timestamp > this_litigation.litigation_start_time + 30 minutes){
-				this_litigation.litigation_status = LitigationStatus.timed_out;
+				this_litigation.litigation_status = LitigationStatus.completed;
+				this_escrow.escrow_status = EscrowStatus.completed;
+				//TODO Transfer remaining escrow tokens
 				bidding.increaseBalance(this_escrow.DC_wallet, this_escrow.stake_amount);
 				this_escrow.stake_amount = 0;
-				emit LitigationTimedOut(escrow_hash);
+				emit LitigationTimedOut(import_id, msg.sender);
 				return false;
 			}
 			else {
 				this_litigation.requested_data = keccak256(requested_data, this_litigation.requested_data_index);
 				// this_litigation.requested_data = keccak256(abi.encodePacked(requested_data, this_litigation.requested_data_index));
-				emit LitigationAnswered(escrow_hash);
+				emit LitigationAnswered(import_id, msg.sender);
 				return true;
 			}
 		}
 
-		function proveLitigaiton(bytes32 escrow_hash, bytes32 proof_data)
+		function proveLitigaiton(bytes32 import_id, address DH_wallet, bytes32 proof_data)
 		public returns (bool DH_was_penalized){
-			LitigationDefinition storage this_litigation = litigation[escrow_hash];
-			EscrowDefinition storage this_escrow = escrow[escrow_hash];
+			LitigationDefinition storage this_litigation = litigation[import_id][DH_wallet];
+			EscrowDefinition storage this_escrow = escrow[import_id][DH_wallet];
 
-			require(this_escrow.DC_wallet == msg.sender &&
-				this_litigation.litigation_start_time > 0 && 
-				this_litigation.litigation_status != LitigationStatus.completed);
+			require(this_escrow.DC_wallet == msg.sender && this_litigation.litigation_start_time > 0 && this_litigation.litigation_status != LitigationStatus.completed);
 
 			if (block.timestamp > this_litigation.litigation_start_time + 30 minutes || this_litigation.litigation_status == LitigationStatus.initiated){
 				this_litigation.litigation_status = LitigationStatus.completed;
@@ -396,7 +389,7 @@ library SafeMath {
 
 			if(answer_hash == this_escrow.total_data_hash){
 				this_litigation.litigation_status = LitigationStatus.completed;
-				emit LitigationCompleted(escrow_hash, false);
+				emit LitigationCompleted(import_id, DH_wallet, false);
 				return false;
 			}
 			else {
@@ -404,10 +397,10 @@ library SafeMath {
 					bidding.increaseBalance(msg.sender, this_escrow.stake_amount);
 					this_escrow.stake_amount = 0;
 					this_litigation.litigation_status = LitigationStatus.completed;
-					emit LitigationCompleted(escrow_hash, false);
+					emit LitigationCompleted(import_id, DH_wallet, false);
 				}
 				this_litigation.litigation_status = LitigationStatus.completed;
-				emit LitigationCompleted(escrow_hash, false);
+				emit LitigationCompleted(import_id, DH_wallet, false);
 				return false;
 			}
 		}
