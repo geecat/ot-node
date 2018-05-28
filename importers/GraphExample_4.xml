@@ -81,4 +81,6 @@
             </EPCISMasterData>
         </extension>
     </EPCISHeader>
+    <EPCISBody>
+    </EPCISBody>
 </epcis:EPCISDocument>
