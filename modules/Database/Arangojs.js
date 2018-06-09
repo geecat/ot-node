@@ -420,6 +420,21 @@ class ArangoJS {
         }
     }
 
+    /**
+     * Gets the count of documents in collection.
+     * @param collectionName
+     */
+    async getDocumentsCount(collectionName) {
+        if (collectionName === undefined || collectionName === null) { throw Error('ArangoError: invalid collection name'); }
+        const collection = this.db.collection(collectionName);
+        try {
+            const data = await collection.count();
+            return data.count;
+        } catch (err) {
+            throw err;
+        }
+    }
+
     async createEdgeCollection(collectionName) {
         const collection = this.db.edgeCollection(collectionName);
         try {

@@ -25,6 +25,7 @@ describe('GS1 Importer tests', () => {
     let graphStorage;
     let systemDb;
     let gs1;
+    const repetition = 10;
 
     const inputXmlFiles = [
         { args: [path.join(__dirname, '../../importers/xml_examples/Transformation.xml')] },
@@ -64,7 +65,6 @@ describe('GS1 Importer tests', () => {
     });
 
     describe('Parse and import XML file for n times', () => {
-        const repetition = 10;
         inputXmlFiles.forEach((test) => {
             for (const i in Array.from({ length: repetition })) {
                 it(
@@ -77,17 +77,21 @@ describe('GS1 Importer tests', () => {
     });
 
     describe('Graph validation', async () => {
-        function checkImportResults(import1Result, import2Result) {
+        function basicImportResultsCheck(import1Result, import2Result) {
+            // [R.S] .root_has seems to be always undefined
             expect(import1Result.root_hash).to.be
                 .equal(import2Result.root_hash);
+            // [R.S] .total_documents seems to be always undefined
             expect(import1Result.total_documents).to.be
                 .equal(import2Result.total_documents);
+
             expect(import1Result.vertices.length).to.be
                 .equal(import2Result.vertices.length);
 
             expect(import1Result.edges.length).to.be
                 .equal(import2Result.edges.length);
-
+        }
+        function deeperImportResultsCheck(import1Result, import2Result) {
             import1Result.vertices.forEach((vertex) => {
                 let vertex2;
                 if (vertex.identifiers) {
@@ -119,19 +123,52 @@ describe('GS1 Importer tests', () => {
                 }
             });
         }
+        async function _getTotalVerticesCountFromDb() {
+            const count = await graphStorage.getDocumentsCount('ot_vertices');
+            return count;
+        }
+        async function _getTotalEdgesCountFromDb() {
+            const count = await graphStorage.getDocumentsCount('ot_edges');
+            return count;
+        }
+        function verticesCountCheck(import1Count, import2Count) {
+            expect(import1Count).to.be.equal(import2Count);
+        }
+        function edgesCountCheck(import1Count, import2Count) {
+            expect(import1Count).to.be.equal(import2Count);
+        }
 
         inputXmlFiles.forEach((test) => {
             it(
-                `should generate the same graph for subsequent ${path.basename(test.args[0])} imports`,
+                `should generate the same graph for n subsequent ${path.basename(test.args[0])} imports`,
                 async () => {
-                    const import1Result = await gs1.parseGS1(test.args[0]);
-                    const import2Result = await gs1.parseGS1(test.args[0]);
-                    checkImportResults(import1Result, import2Result);
+                    const importResults = [];
+                    const verticesCountFromDb = [];
+                    const edgesCountFromDb = [];
+
+                    for (const i in Array.from({ length: repetition })) {
+                        // eslint-disable-next-line no-await-in-loop
+                        const result = await gs1.parseGS1(test.args[0]);
+                        importResults.push(result);
+                        // eslint-disable-next-line no-await-in-loop
+                        const currentVerticesCountFromDb = await _getTotalVerticesCountFromDb();
+                        verticesCountFromDb.push(currentVerticesCountFromDb);
+                        // eslint-disable-next-line no-await-in-loop
+                        const currentEdgesCountFromDb = await _getTotalEdgesCountFromDb();
+                        edgesCountFromDb.push(currentEdgesCountFromDb);
+                    }
+
+                    for (let i = 0; i < importResults.length - 1; i += 1) {
+                        basicImportResultsCheck(importResults[i], importResults[i + 1]);
+                        deeperImportResultsCheck(importResults[i], importResults[i + 1]);
+                        verticesCountCheck(verticesCountFromDb[i], verticesCountFromDb[i + 1]);
+                        edgesCountCheck(edgesCountFromDb[i], edgesCountFromDb[i + 1]);
+                    }
                 },
             );
         });
 
-        it('should correctly import all examples together', async () => {
+        it('should correctly import all examples together twice', async () => {
             const importResults = [];
             const imports = [];
 
@@ -143,9 +180,9 @@ describe('GS1 Importer tests', () => {
                 const result = await gs1.parseGS1(imports[i].args[0]);
                 importResults.push(result);
             }
-
             for (let i = 0; i < inputXmlFiles.length; i += 1) {
-                checkImportResults(importResults[i], importResults[i + inputXmlFiles.length]);
+                basicImportResultsCheck(importResults[i], importResults[i + inputXmlFiles.length]);
+                deeperImportResultsCheck(importResults[i], importResults[i + inputXmlFiles.length]);
             }
         });
     });

@@ -260,6 +260,25 @@ class GraphStorage {
     }
 
     /**
+     * Gets the count of documents in collection.
+     * @param collectionName
+     * @returns {Promise}
+     */
+    getDocumentsCount(collectionName) {
+        return new Promise((resolve, reject) => {
+            if (!this.db) {
+                reject(Error('Not connected to graph database'));
+            } else {
+                this.db.getDocumentsCount(collectionName).then((result) => {
+                    resolve(result);
+                }).catch((err) => {
+                    reject(err);
+                });
+            }
+        });
+    }
+
+    /**
      * Find event based on ID and bizStep
      * Note: based on bizStep we define INPUT(shipping) or OUTPUT(receiving)
      * @param senderId    Sender ID
