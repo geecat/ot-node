@@ -30,7 +30,7 @@ class DCService {
         this.blockchain.writeRootHash(dataId, rootHash).then((res) => {
             log.info('Fingerprint written on blockchain');
         }).catch((e) => {
-            console.log('Error: ', e);
+            log.log('info', 'Error: %j', e);
         });
 
         const dhWallets = [];

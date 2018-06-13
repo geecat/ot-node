@@ -192,7 +192,7 @@ class EventEmitter {
                         log.info('[DC] Payload sent');
                     });
                 }).catch((e) => {
-                    console.log(e);
+                    log.log('info', ' Error: %j', e);
                 });
             });
 
