@@ -54,6 +54,15 @@ class OTNode {
             process.exit(1);
         }
 
+        // check for Updates
+        try {
+            await Utilities.checkForUpdates();
+            log.info('Checking for updates');
+        } catch (err) {
+            console.log(err);
+            process.exit(1);
+        }
+
         // check if ArangoDB service is running at all
         if (process.env.GRAPH_DATABASE === 'arangodb') {
             try {

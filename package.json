@@ -96,7 +96,7 @@
     "xml2js": "^0.4.19"
   },
   "auto-updater":{
-    "repo":"/OriginTrail/ot-node",
+    "repo":"OriginTrail/ot-node",
     "branch":"feature/automatic_update"
   }
 }

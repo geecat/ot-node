@@ -1,0 +1,321 @@
+const {
+    describe, it, after, before,
+} = require('mocha');
+const { assert, expect } = require('chai');
+const fs = require('fs');
+var models = require('../../models');
+const deasync = require('deasync-promise');
+const Utilities = require('../../modules/Utilities');
+const config = require('../../modules/Config');
+const Storage = require('../../modules/Storage');
+const kadence = require('@kadenceproject/kadence');
+const databaseData = require('./test_data/arangodb-data.js');
+
+let myConfig;
+
+describe('Utilities module', () => {
+    before('loadConfig() should populate myConfig object', async () => {
+        Storage.models = deasync(models.sequelize.sync()).models;
+
+        myConfig = await Utilities.loadConfig();
+    });
+
+    it('node_config should contain certain entries', () => {
+        assert.hasAllKeys(
+            myConfig, ['node_wallet', 'node_private_key', 'node_rpc_ip', 'node_port',
+                'node_kademlia_id', 'selected_graph_database', 'selected_blockchain', 'request_timeout', 'ssl_keypath',
+                'ssl_certificate_path', 'private_extended_key_path', 'child_derivation_index', 'cpus', 'embedded_wallet_directory',
+                'embedded_peercache_path', 'onion_virtual_port', 'traverse_nat_enabled', 'traverse_port_forward_ttl', 'verbose_logging',
+                'control_port_enabled', 'control_port', 'control_sock_enabled', 'control_sock', 'onion_enabled', 'test_network',
+                'ssl_authority_paths', 'network_bootstrap_nodes', 'solve_hashes', 'remote_access_whitelist', 'node_rpc_port',
+                'dh_min_price', 'dh_max_price', 'dh_max_data_size_bytes', 'dh_max_stake', 'remote_control_enabled', 'remote_control_port', 'probability_threshold',
+                'dh_max_time_mins', 'dh_price', 'dh_stake_factor'],
+            'Some config items are missing in node_config',
+        );
+    });
+
+    it('getNodeNetworkType()', async () => {
+        await Utilities.getNodeNetworkType().then((result) => {
+            assert.equal(result, 'rinkeby');
+        }).catch((error) => {
+            console.log(error);
+        });
+    });
+
+    // way to check is rinkeby with our token healthy
+    it('getInfuraRinkebyApiMethods()', async () => {
+        const response = await Utilities.getInfuraRinkebyApiMethods();
+        assert.equal(response.statusCode, 200);
+        assert.containsAllKeys(response.body, ['get', 'post']);
+    });
+
+    // way to chech is method from rinkeby with our token healthy
+    it('getBlockNumberInfuraRinkebyApiMethod()', async () => {
+        const responseFromApi = await Utilities.getBlockNumberInfuraRinkebyApiMethod();
+        assert.equal(responseFromApi.statusCode, 200);
+        const responseFromWeb3 = await Utilities.getBlockNumberFromWeb3();
+        // assert.equal(responseFromApi.body.result, responseFromWeb3);
+        // Not possible to match exactly the block every time as new ones get mined,
+        // so range is used
+        expect(Utilities.hexToNumber(responseFromApi.body.result))
+            .to.be.closeTo(Utilities.hexToNumber(responseFromWeb3), 5);
+    });
+
+    it('loadSelectedBlockchainInfo()', async () => {
+        const myResult = await Utilities.loadSelectedBlockchainInfo();
+        assert.hasAllKeys(myResult, ['blockchain_title', 'id', 'network_id', 'gas_limit',
+            'gas_price', 'ot_contract_address', 'token_contract_address', 'escrow_contract_address',
+            'rpc_node_host', 'rpc_node_port', 'wallet_address', 'wallet_private_key', 'bidding_contract_address']);
+        assert.equal(myResult.blockchain_title, 'Ethereum');
+    });
+
+    it('isEmptyObject check', () => {
+        assert.isTrue(Utilities.isEmptyObject({}));
+        assert.isFalse(Utilities.isEmptyObject([]));
+        assert.isFalse(Utilities.isEmptyObject(0));
+        const myObj = {
+            myKey: 'Some Value',
+        };
+        assert.isFalse(Utilities.isEmptyObject(myObj));
+    });
+
+    it('getRandomInt check', () => {
+        const max11 = Utilities.getRandomInt(11);
+        assert.isAtLeast(max11, 0);
+        assert.isAtMost(max11, 11);
+    });
+
+    it('getRandomIntRange check', () => {
+        const max15max33 = Utilities.getRandomIntRange(15, 33);
+        assert.isAtLeast(max15max33, 15);
+        assert.isAtMost(max15max33, 33);
+    });
+
+    it('getRandomString check', () => {
+        const mediumLong = 25;
+        const randomStr = Utilities.getRandomString(mediumLong);
+        assert.typeOf(randomStr, 'string');
+        assert.isTrue(randomStr.length === 25);
+    });
+
+    it('isIpEqual() check', () => {
+        assert.isTrue(Utilities.isIpEqual('10.234.52.124', '10.234.52.124'));
+        assert.isFalse(Utilities.isIpEqual('192.168.0.1', '10.234.52.124'));
+    });
+
+    it('generateSelfSignedCertificate() should gen kademlia.key and kademlia.crt', async () => {
+        const result = await Utilities.generateSelfSignedCertificate();
+        const myKey = fs.readFileSync(`${__dirname}/../../keys/${myConfig.ssl_keypath}`, 'utf8');
+        expect(myKey).to.be.a('string');
+        assert.isTrue(/^\r?\n*-----BEGIN RSA PRIVATE KEY-----\r?\n/.test(myKey));
+        assert.isTrue(/\r?\n-----END RSA PRIVATE KEY-----\r?\n*$/.test(myKey));
+        const myCert = fs.readFileSync(`${__dirname}/../../keys/${myConfig.ssl_certificate_path}`, 'utf8');
+        expect(myCert).to.be.a('string');
+        assert.isTrue(/^\r?\n*-----BEGIN CERTIFICATE-----\r?\n/.test(myCert));
+        assert.isTrue(/\r?\n-----END CERTIFICATE-----\r?\n*$/.test(myCert));
+    });
+
+    it('saveToConfig() ', () => {
+        const newVerboseLogging = 7;
+        Utilities.saveToConfig('verbose_logging', newVerboseLogging).then(() => {
+            // reload config and check the value
+            Utilities.loadConfig().then((config) => {
+                assert(config.verbose_logging, 7);
+            }).catch((error) => {
+                console.log(error);
+            });
+        }).catch((error) => {
+            console.log(error); // TODO handle error propertly
+        });
+    });
+
+    it('createPrivateExtendedKey()', () => {
+        Utilities.createPrivateExtendedKey(kadence);
+        const myPrvKey = fs.readFileSync(`${__dirname}/../../keys/${myConfig.private_extended_key_path}`, 'utf8');
+        assert.typeOf(myPrvKey, 'string');
+        assert.isTrue(myPrvKey.length > 0);
+    });
+
+    it('loadSelectedDatabaseInfo()', async () => {
+        const myResult = await Utilities.loadSelectedDatabaseInfo();
+        assert.hasAllKeys(myResult, ['id', 'database_system', 'username', 'password',
+            'host', 'port', 'max_path_length', 'database']);
+        if (process.env.GRAPH_DATABASE === 'arangodb') {
+            assert.equal(myResult.database_system, 'arango_db');
+        } else if (process.env.GRAPH_DATABASE === 'neo4j') {
+            assert.equal(myResult.database_system, 'neo4j');
+        }
+    });
+
+
+    it('sortObject() should return object sorted by keys', () => {
+        const unsorted = {
+            b: 'asdsad',
+            36: 'masdas',
+            '-1': 'minus one',
+            a: 'dsfdsfsdf',
+            A: 'dsfdsfsdf',
+            p: '12345',
+            _: '???????',
+            D: {
+                b: 'asdsad', c: 'masdas', a: 'dsfdsfsdf', p: 'mmmmmmmm', _: '???????',
+            },
+        };
+
+        const expectedSorted = {
+            36: 'masdas',
+            '-1': 'minus one',
+            _: '???????',
+            a: 'dsfdsfsdf',
+            A: 'dsfdsfsdf',
+            b: 'asdsad',
+            D:
+                {
+                    _: '???????',
+                    a: 'dsfdsfsdf',
+                    b: 'asdsad',
+                    c: 'masdas',
+                    p: 'mmmmmmmm',
+                },
+            p: '12345',
+        };
+
+        const actualSorted = Utilities.sortObject(unsorted);
+        // compare values at indexes
+        for (let index = 0; index < Object.keys(expectedSorted).length; index += 1) {
+            assert.equal(actualSorted.index, expectedSorted.index);
+        }
+    });
+
+    it('copyObject() check', () => {
+        const edgeOne = databaseData.edges[0];
+        const copyEdgeOne = Utilities.copyObject(edgeOne);
+        assert.deepEqual(edgeOne, copyEdgeOne);
+    });
+
+    it('hexToNumber() and numberToHex check', () => {
+        const hexValue = Utilities.numberToHex(500);
+        const intValue = Utilities.hexToNumber(hexValue);
+        assert.equal(hexValue, intValue);
+    });
+
+
+    it('executeCallback() callback not defined scenario', async () => {
+        // helper function
+        function first(timeInterval) {
+            setTimeout(() => function () {
+                console.log('Helper function log');
+            }, 1000);
+        }
+        try {
+            const result = await Utilities.executeCallback(first(), false);
+            assert.isUndefined(result);
+        } catch (error) {
+            console.log(error);
+        }
+    });
+
+    it('flattenObject() regular', async () => {
+        const regularObj = {
+            name: 'fiiv',
+            birthYear: 1986,
+            favoriteColors: ['red', 'orange'],
+            isWearing: {
+                shirt: {
+                    color: 'white',
+                },
+                shorts: {
+                    color: 'blue',
+                },
+            },
+        };
+        const expectedFlattened = {
+            name: 'fiiv',
+            birthYear: 1986,
+            favoriteColors_0: 'red',
+            favoriteColors_1: 'orange',
+            isWearing_shirt_color: 'white',
+            isWearing_shorts_color: 'blue',
+        };
+
+        const flattened = Utilities.flattenObject(regularObj);
+        assert.deepEqual(flattened, expectedFlattened);
+    });
+
+    it('flattenObject() null', async () => {
+        const flattened = Utilities.flattenObject(null);
+        assert.deepEqual(flattened, null);
+    });
+
+    it('flattenObject() empty', async () => {
+        const flattened = Utilities.flattenObject({});
+        assert.deepEqual(flattened, {});
+    });
+
+    it('objectDistance() test 1', async () => {
+        const obj1 = {
+            a: 'abc',
+        };
+        const obj2 = {
+            a: 'abc',
+        };
+
+        const distance = Utilities.objectDistance(obj1, obj2);
+        assert.equal(distance, 100);
+    });
+
+    it('objectDistance() test 2', async () => {
+        const obj1 = {
+            a: 'abc',
+        };
+        const obj2 = {
+            b: 'abc',
+        };
+
+        const distance = Utilities.objectDistance(obj1, obj2);
+        assert.equal(distance, 0);
+    });
+
+    it('objectDistance() test 3', async () => {
+        const obj1 = {
+            a: {
+                b: {
+                    c: 'asdf',
+                },
+            },
+        };
+        const obj2 = {
+            a: {
+                b: {
+                    c: 'asdf',
+                },
+            },
+        };
+
+        const distance = Utilities.objectDistance(obj1, obj2);
+        assert.equal(distance, 100);
+    });
+
+    after('cleanup', () => {
+        const keyToDelete = `${__dirname}/../../keys/${myConfig.ssl_keypath}`;
+        const certToDelete = `${__dirname}/../../keys/${myConfig.ssl_certificate_path}`;
+        const prvKeyToDelete = `${__dirname}/../../keys/${myConfig.private_extended_key_path}`;
+
+        try {
+            fs.unlinkSync(keyToDelete);
+        } catch (error) {
+            console.log(error);
+        }
+        try {
+            fs.unlinkSync(certToDelete);
+        } catch (error) {
+            console.log(error);
+        }
+        try {
+            fs.unlinkSync(prvKeyToDelete);
+        } catch (error) {
+            console.log(error);
+        }
+        myConfig = {};
+    });
+});
