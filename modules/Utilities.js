@@ -15,6 +15,7 @@ const neo4j = require('neo4j-driver').v1;
 const levenshtein = require('js-levenshtein');
 const BN = require('bn.js');
 var numberToBN = require('number-to-bn');
+const AutoUpdater = require('auto-updater');
 
 require('dotenv').config();
 
@@ -248,6 +249,23 @@ class Utilities {
                 this.getLogger.error(config.database.database_system);
                 reject(Error('Database doesn\'t exists'));
             }
+        });
+    }
+
+    /**
+     * Check if origintrail database exists, in case of arangoDB create one
+     * @returns {Promise<any>}
+     */
+
+    static checkForUpdates() {
+        const autoupdater = new AutoUpdater({
+            pathToJson: '',
+            autoupdate: false,
+            checkgit: true,
+            jsonhost: 'raw.githubusercontent.com',
+            contenthost: 'codeload.github.com',
+            progressDebounce: 0,
+            devmode: false,
         });
     }
 
