@@ -22,6 +22,14 @@ module.exports = {
         import_timestamp: {
             type: Sequelize.DATE,
         },
+        created_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
+        updated_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
     }),
     down: (queryInterface, Sequelize) => queryInterface.dropTable('data_infos'),
 };

@@ -28,6 +28,14 @@ module.exports = {
         my_stake: {
             type: Sequelize.REAL,
         },
+        created_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
+        updated_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
     }),
     down: (queryInterface, Sequelize) => queryInterface.dropTable('replicated_data'),
 };

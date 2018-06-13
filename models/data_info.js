@@ -6,8 +6,11 @@ module.exports = (sequelize, DataTypes) => {
         total_data_blocks: DataTypes.INTEGER,
         root_hash: DataTypes.STRING(40),
         import_timestamp: DataTypes.DATE,
+        created_at: DataTypes.INTEGER,
+        updated_at: DataTypes.INTEGER,
     }, {
         tableName: 'data_info',
+        timestamps: true,
     });
     data_info.associate = function (models) {
     // associations can be defined here

@@ -26,6 +26,14 @@ module.exports = {
             type: Sequelize.INTEGER,
             allowNull: true,
         },
+        created_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
+        updated_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
     }),
     down: (queryInterface, Sequelize) => queryInterface.dropTable('data_challenges'),
 };

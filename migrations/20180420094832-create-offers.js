@@ -50,6 +50,14 @@ module.exports = {
             type: Sequelize.STRING,
             allowNull: false,
         },
+        created_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
+        updated_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
     }),
     down: (queryInterface, Sequelize) => queryInterface.dropTable('offers'),
 };

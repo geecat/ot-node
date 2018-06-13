@@ -20,6 +20,9 @@ module.exports = {
         rpc_node_port: '80',
         wallet_address: process.env.NODE_WALLET,
         wallet_private_key: process.env.NODE_PRIVATE_KEY,
+        created_at: new Date(),
+        updated_at: new Date(),
+
     }], {}),
 
     down: (queryInterface, Sequelize) => queryInterface.bulkDelete('blockchain_data', null, {}),

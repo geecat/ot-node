@@ -9,8 +9,11 @@ module.exports = (sequelize, DataTypes) => {
         data_size: DataTypes.REAL,
         my_stake: DataTypes.REAL,
         dc_stake: DataTypes.REAL,
+        created_at: DataTypes.INTEGER,
+        updated_at: DataTypes.INTEGER,
     }, {
         tableName: 'holding_data',
+        timestamps:true,
     });
     holding_data.associate = function (models) {
     // associations can be defined here

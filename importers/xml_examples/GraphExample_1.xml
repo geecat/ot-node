@@ -126,11 +126,11 @@
 		</extension>
 	</EPCISHeader>
 	<EPCISBody>
-		<EventList>	
+		<EventList>
 			<ObjectEvent>
 				<!-- Transport -->
 				<eventTime>2015-04-17T00:00:00.000-04:00</eventTime> <!-- Mandatory-->
-				<eventTimeZoneOffset>-04:00</eventTimeZoneOffset> <!-- Mandatory-->				 
+				<eventTimeZoneOffset>-04:00</eventTimeZoneOffset> <!-- Mandatory-->
 				<epcList>
 					<epc>urn:epc:id:sgtin:Batch_1</epc>
 				</epcList>
@@ -145,7 +145,7 @@
 				</bizLocation>
 				<extension>
 					<quantityList> <!-- Optional -->
-						<quantityElement>			 
+						<quantityElement>
 							<epcClass>urn:epc:id:sgtin:Batch_1</epcClass>
 							<quantity>3</quantity>
 							<uom>KG</uom>

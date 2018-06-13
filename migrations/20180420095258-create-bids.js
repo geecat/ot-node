@@ -39,6 +39,14 @@ module.exports = {
             allowNull: false,
             type: Sequelize.STRING,
         },
+        created_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
+        updated_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
     }),
     down: (queryInterface, Sequelize) => queryInterface.dropTable('bids'),
 };

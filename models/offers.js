@@ -1,4 +1,3 @@
-
 module.exports = (sequelize, DataTypes) => {
     var offers = sequelize.define('offers', {
         import_id: DataTypes.INTEGER,
@@ -12,10 +11,13 @@ module.exports = (sequelize, DataTypes) => {
         dh_ids: DataTypes.STRING,
         start_tender_time: DataTypes.INTEGER,
         status: DataTypes.STRING,
-
+        created_at: DataTypes.INTEGER,
+        updated_at: DataTypes.INTEGER,
+    }, {
+        timestamps: true,
     }, {});
     offers.associate = function (models) {
-    // associations can be defined here
+        // associations can be defined here
     };
     return offers;
 };

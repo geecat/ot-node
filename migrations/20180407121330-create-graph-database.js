@@ -28,6 +28,14 @@ module.exports = {
         database: {
             type: Sequelize.STRING,
         },
+        created_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
+        updated_at: {
+            allowNull: false,
+            type: Sequelize.INTEGER,
+        },
     }),
     down: (queryInterface, Sequelize) => queryInterface.dropTable('graph_databases'),
 };

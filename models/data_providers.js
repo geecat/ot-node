@@ -1,9 +1,16 @@
 
 module.exports = (sequelize, DataTypes) => {
-    var data_providers = sequelize.define('data_providers', {
-        ip: DataTypes.STRING(70),
-        description: DataTypes.STRING(200),
-    }, {});
+    var data_providers = sequelize.define(
+        'data_providers', {
+            ip: DataTypes.STRING(70),
+            description: DataTypes.STRING(200),
+            created_at: DataTypes.INTEGER,
+            updated_at: DataTypes.INTEGER,
+        }, {
+            timestamps: true,
+        },
+        {},
+    );
     data_providers.associate = function (models) {
     // associations can be defined here
     };

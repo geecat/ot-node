@@ -5,6 +5,10 @@ module.exports = (sequelize, DataTypes) => {
         dh_kademlia_id: DataTypes.STRING(128),
         data_public_key: DataTypes.STRING(2048),
         data_private_key: DataTypes.STRING(2048),
+        created_at: DataTypes.INTEGER,
+        updated_at: DataTypes.INTEGER,
+    }, {
+        timestamps: true,
     }, {});
     data_holders.associate = function (models) {
     // associations can be defined here

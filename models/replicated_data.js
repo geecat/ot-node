@@ -8,6 +8,10 @@ module.exports = (sequelize, DataTypes) => {
         total_amount: DataTypes.REAL,
         dh_stake: DataTypes.REAL,
         my_stake: DataTypes.REAL,
+        created_at: DataTypes.INTEGER,
+        updated_at: DataTypes.INTEGER,
+    }, {
+        timestamps: true,
     }, {});
     replicated_data.associate = function (models) {
     // associations can be defined here

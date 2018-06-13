@@ -9,6 +9,8 @@ module.exports = {
         port: process.env.DB_PORT,
         max_path_length: 1000,
         database: process.env.DB_DATABASE,
+        created_at: new Date(),
+        updated_at: new Date(),
     },
     {
         database_system: 'neo4j',
@@ -18,6 +20,8 @@ module.exports = {
         port: process.env.NEO_PORT,
         max_path_length: 1000,
         database: process.env.NEO_DATABASE,
+        created_at: new Date(),
+        updated_at: new Date(),
     },
     ], {}),
 

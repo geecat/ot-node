@@ -1,4 +1,3 @@
-
 module.exports = (sequelize, DataTypes) => {
     var blockchain_data = sequelize.define('blockchain_data', {
         blockchain_title: DataTypes.STRING(128),
@@ -13,9 +12,13 @@ module.exports = (sequelize, DataTypes) => {
         rpc_node_port: DataTypes.INTEGER,
         wallet_address: DataTypes.STRING(50),
         wallet_private_key: DataTypes.STRING(100),
+        created_at: DataTypes.INTEGER,
+        updated_at: DataTypes.INTEGER,
+    }, {
+        timestamps: true,
     }, {});
     blockchain_data.associate = function (models) {
-    // associations can be defined here
+        // associations can be defined here
     };
     return blockchain_data;
 };
