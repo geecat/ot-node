@@ -54,6 +54,15 @@ class OTNode {
             process.exit(1);
         }
 
+        // node.js version check
+        try {
+            await Utilities.checkNodeJsVersion();
+            log.info('node.js version check done');
+        } catch (err) {
+            console.log(err);
+            process.exit(1);
+        }
+
         // check for Updates
         try {
             await Utilities.checkForUpdates();
