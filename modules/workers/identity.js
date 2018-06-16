@@ -1,6 +1,5 @@
 const kadence = require('@kadenceproject/kadence');
 const readLine = require('readline');
-const { EventEmitter } = require('events');
 
 
 if (parseInt(process.env.kadence_TestNetworkEnabled, 10)) {

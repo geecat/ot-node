@@ -49,10 +49,10 @@ class Network {
         this.identity = new kadence.eclipse.EclipseIdentity(this.xprivkey, this.index);
 
         this.log.info('Checking the identity');
-        this.networkUtilities.checkIdentity(
+        await this.networkUtilities.checkIdentity(
             this.identity,
             this.xprivkey,
-        ); // Check if identity is valid
+        );
 
         const { childkey, parentkey } = this.networkUtilities.getIdentityKeys(this.xprivkey);
         this.identity = kadence.utils.toPublicKeyHash(childkey.publicKey).toString('hex');
@@ -97,17 +97,26 @@ class Network {
         });
         this.log.info('Starting OT Node...');
 
-        // Enable Quasar plugin used for publish/subscribe mechanism
-        this.node.quasar = this.node.plugin(kadence.quasar());
-        this.node.peercache = this.node.plugin(PeerCache(`${__dirname}/../data/${config.embedded_peercache_path}`));
-
         // We use Hashcash for relaying messages to prevent abuse and make large scale
         // DoS and spam attacks cost prohibitive
-        // this.node.hashcash = this.node.plugin(kadence.hashcash({
-        //     methods: ['PUBLISH', 'SUBSCRIBE', 'payload-sending'],
-        //     difficulty: 10,
-        // }));
-        this.log.info('Hashcash initialised');
+        this.node.hashcash = this.node.plugin(kadence.hashcash({
+            methods: ['PUBLISH', 'SUBSCRIBE'],
+            difficulty: 8,
+        }));
+
+        // Enable Quasar plugin used for publish/subscribe mechanism
+        this.node.quasar = this.node.plugin(kadence.quasar());
+        this.node.spartacus = this.node.plugin(kadence.spartacus(
+            this.xprivkey,
+            parseInt(config.child_derivation_index, 10),
+            kadence.constants.HD_KEY_DERIVATION_PATH,
+        ));
+        this.node.eclipse = this.node.plugin(kadence.eclipse());
+        this.node.permission = this.node.plugin(kadence.permission({
+            privateKey: this.node.spartacus.privateKey,
+            walletPath: `${__dirname}/../data/${config.embedded_wallet_directory}`,
+        }));
+        this.node.peercache = this.node.plugin(PeerCache(`${__dirname}/../data/${config.embedded_peercache_path}`));
 
         if (parseInt(config.onion_enabled, 10)) {
             this.enableOnion();
@@ -116,6 +125,10 @@ class Network {
         if (parseInt(config.traverse_nat_enabled, 10)) {
             this.enableNatTraversal();
         }
+
+        this.log.info('validating solutions in wallet, this can take some time');
+        await this.node.wallet.validate();
+
         this._registerRoutes();
 
         // Use verbose logging if enabled
@@ -132,9 +145,7 @@ class Network {
             this.log.notify(`OT Node listening at https://${this.node.contact.hostname}:${this.node.contact.port}`);
             this.networkUtilities.registerControlInterface(config, this.node);
 
-            if (parseInt(config.solve_hashes, 10)) {
-                this.networkUtilities.spawnHashSolverProcesses(this.node);
-            }
+            this.networkUtilities.spawnHashSolverProcesses(this.node);
 
             const retryPeriod = 5000;
             async.retry({

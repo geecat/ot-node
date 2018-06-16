@@ -5,7 +5,6 @@ const path = require('path');
 const assert = require('assert');
 const boscar = require('boscar');
 const hdkey = require('hdkey');
-const deasync = require('deasync-promise');
 const utilities = require('./Utilities');
 const config = require('./Config');
 const kadence = require('@kadenceproject/kadence');
@@ -20,9 +19,9 @@ class NetworkUtilities {
     }
 
     /**
-    * Checks existence of SSL certificate and if not, generates one
-    * @return {Promise<boolean>}
-    */
+     * Checks existence of SSL certificate and if not, generates one
+     * @return {Promise<boolean>}
+     */
     async setSelfSignedCertificate() {
         if (!fs.existsSync(`../keys/${config.ssl_key_path}`)) {
             const result = await utilities.generateSelfSignedCertificate(config);
@@ -36,22 +35,20 @@ class NetworkUtilities {
     }
 
     /**
-    * Mining a new identity
-    * @return {Promise<void>}
-    */
+     * Mining a new identity
+     * @return {Promise<void>}
+     */
     async solveIdentity() {
         const events = new EventEmitter();
         const start = Date.now();
+
         let time;
         let attempts = 0;
         const status = setInterval(() => {
-            this.log.info('Still solving identity, ' +
-          `currently ${attempts} of ${kadence.constants.MAX_NODE_INDEX} ` +
-          `possible indices tested in the last ${ms(Date.now() - start)}`);
+            this.log.info(`Still solving identity, currently ${attempts} of ${kadence.constants.MAX_NODE_INDEX} possible indices tested in the last ${ms(Date.now() - start)}`);
         }, 60000);
 
-        this.log.info(`Solving identity derivation index with ${config.cpus} ` +
-        'solver processes, this can take a while...');
+        this.log.info(`Solving identity derivation index with ${config.cpus} solver processes, this can take a while...`);
 
         events.on('attempt', () => attempts += 1);
 
@@ -73,13 +70,13 @@ class NetworkUtilities {
     }
 
     /**
-    * Creates child processes to mine an identity
-    * @param xprivkey
-    * @param events
-    * @return {Promise<any>}
-    */
+     * Creates child processes to mine an identity
+     * @param xprivkey
+     * @param events
+     * @return {Promise<any>}
+     */
     async spawnIdentityDerivationProcesses(xprivkey, events) {
-        // How many process can we run
+        // How many processes can we run
         const cpus = parseInt(config.cpus, 10);
 
         if (cpus === 0) {
@@ -104,10 +101,10 @@ class NetworkUtilities {
             });
         }
 
-        return new Promise((resolve, reject) => {
+        return new Promise((resolve) => {
             events.once('index', (i) => {
                 events.removeAllListeners();
-                // this.solvers.forEach(s => s.kill('SIGTERM'));
+                this.solvers.forEach(s => s.kill('SIGTERM'));
                 resolve(i);
             });
         });
@@ -129,7 +126,6 @@ class NetworkUtilities {
             env: process.env,
         });
 
-
         solver.on('message', (msg) => {
             if (msg.error) {
                 return this.log.error(`Derivation ${c} error, ${msg.error}`);
@@ -146,7 +142,6 @@ class NetworkUtilities {
         });
 
         solver.send([xprv, index]);
-
         return solver;
     }
 
@@ -210,8 +205,7 @@ class NetworkUtilities {
                 return this.log.error(`Solver ${c} error, ${msg.error}`);
             }
 
-            this.log.info(`Solver ${c} found solution ` +
-          `in ${msg.result.attempts} attempts (${ms(msg.result.time)})`);
+            this.log.info(`Solver ${c} found solution in ${msg.result.attempts} attempts (${ms(msg.result.time)})`);
 
             const solution = new kadence.permission.PermissionSolution(Buffer.from(msg.result.solution, 'hex'));
             node.wallet.put(solution);
@@ -226,10 +220,10 @@ class NetworkUtilities {
     }
 
     /**
-    * Get identity keys
-    * @param string - extended private key
-    * @return {{childkey: *, parentkey: *}}
-    */
+     * Get identity keys
+     * @param xprivkey - extended private key
+     * @return {{childkey: *, parentkey: *}}
+     */
     getIdentityKeys(xprivkey) {
         // Start initializing identity keys
         const parentkey = hdkey.fromExtendedKey(xprivkey)
@@ -242,8 +236,8 @@ class NetworkUtilities {
     }
 
     /**
-    * Verifies if we are on the test network and otherconfig checks
-    */
+     * Verifies if we are on the test network and otherconfig checks
+     */
     verifyConfiguration(config) {
         if (parseInt(config.test_network, 10)) {
             this.log.warn('Node is running in test mode, difficulties are reduced');
@@ -253,23 +247,22 @@ class NetworkUtilities {
         }
 
         if (parseInt(config.traverse_nat_enabled, 10) && parseInt(config.onion_enabled, 10)) {
-            this.log.error('Refusing to start with both TraverseNatEnabled and ' +
-          'OnionEnabled - this is a privacy risk');
+            this.log.error('Refusing to start with both TraverseNatEnabled and OnionEnabled - this is a privacy risk');
             process.exit(1);
         }
     }
 
     /**
-   * Validate identity and solve if not valid
-   * @param identity
-   * @param xprivkeyd
-   */
-    checkIdentity(identity, xprivkey) {
+     * Validate identity and solve if not valid
+     * @param identity
+     * @param xprivkey
+     */
+    async checkIdentity(identity, xprivkey) {
         this.xprivkey = xprivkey;
         this.identity = identity;
         if (!identity.validate(this.xprivkey, this.index)) {
             this.log.warn(`Identity is not yet generated. Identity derivation not yet solved - ${this.index} is invalid`);
-            deasync(this.solveIdentity());
+            await this.solveIdentity();
         }
     }
 }
