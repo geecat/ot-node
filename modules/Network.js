@@ -101,7 +101,7 @@ class Network {
         // DoS and spam attacks cost prohibitive
         this.node.hashcash = this.node.plugin(kadence.hashcash({
             methods: ['PUBLISH', 'SUBSCRIBE'],
-            difficulty: 8,
+            difficulty: 2,
         }));
 
         // Enable Quasar plugin used for publish/subscribe mechanism
@@ -112,10 +112,6 @@ class Network {
             kadence.constants.HD_KEY_DERIVATION_PATH,
         ));
         this.node.eclipse = this.node.plugin(kadence.eclipse());
-        this.node.permission = this.node.plugin(kadence.permission({
-            privateKey: this.node.spartacus.privateKey,
-            walletPath: `${__dirname}/../data/${config.embedded_wallet_directory}`,
-        }));
         this.node.peercache = this.node.plugin(PeerCache(`${__dirname}/../data/${config.embedded_peercache_path}`));
 
         if (parseInt(config.onion_enabled, 10)) {
@@ -125,9 +121,6 @@ class Network {
         if (parseInt(config.traverse_nat_enabled, 10)) {
             this.enableNatTraversal();
         }
-
-        this.log.info('validating solutions in wallet, this can take some time');
-        await this.node.wallet.validate();
 
         this._registerRoutes();
 
@@ -144,8 +137,6 @@ class Network {
         this.node.listen(parseInt(config.node_port, 10), () => {
             this.log.notify(`OT Node listening at https://${this.node.contact.hostname}:${this.node.contact.port}`);
             this.networkUtilities.registerControlInterface(config, this.node);
-
-            this.networkUtilities.spawnHashSolverProcesses(this.node);
 
             const retryPeriod = 5000;
             async.retry({
