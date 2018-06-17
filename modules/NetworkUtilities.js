@@ -189,13 +189,6 @@ class NetworkUtilities {
      * Verifies if we are on the test network and otherconfig checks
      */
     verifyConfiguration(config) {
-        if (parseInt(config.test_network, 10)) {
-            this.log.warn('Node is running in test mode, difficulties are reduced');
-            process.env.kadence_TestNetworkEnabled = config.test_network;
-            kadence.constants.SOLUTION_DIFFICULTY = 2;
-            kadence.constants.IDENTITY_DIFFICULTY = 2;
-        }
-
         if (parseInt(config.traverse_nat_enabled, 10) && parseInt(config.onion_enabled, 10)) {
             this.log.error('Refusing to start with both TraverseNatEnabled and OnionEnabled - this is a privacy risk');
             process.exit(1);

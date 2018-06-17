@@ -24,6 +24,9 @@ class Network {
         this.networkUtilities = ctx.networkUtilities;
 
         if (parseInt(config.test_network, 10)) {
+            this.log.warn('Node is running in test mode, difficulties are reduced');
+            process.env.kadence_TestNetworkEnabled = config.test_network;
+
             kadence.constants.IDENTITY_DIFFICULTY = 2;
             kadence.constants.SOLUTION_DIFFICULTY = 2;
         }
